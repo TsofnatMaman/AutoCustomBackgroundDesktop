@@ -198,7 +198,7 @@ $scriptPath = Get-ScriptPath
 $remoteImageUrl  = "https://raw.githubusercontent.com/TsofnatMaman/AutoCustomBackgroundDesktop/main/backgrounds/1.jpg"
 
 # --- Target date / countdown ---
-$targetDay  = Get-Date "2025-09-20"
+$targetDay  = Get-Date "2026-04-20"
 $today      = Get-Date
 $currentDay = ($targetDay - $today).Days
 if ($currentDay -le 0) { exit }  # stop when the date has passed
