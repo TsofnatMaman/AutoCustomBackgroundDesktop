@@ -67,22 +67,44 @@ function Load-Configuration {
 $script:Config = Load-Configuration
 
 # --- Image Management ---
-function Get-BaseImage([string]$RemoteImageUrl, [string]$BaseImagePath) {
-    if (Test-Path $BaseImagePath) { Remove-Item $BaseImagePath -Force }
-    
+function Get-BaseImage {
+    param(
+        [string]$RemoteImageUrl,
+        [string]$BaseImagePath
+    )
+
+    Write-Log "Attempting to sync background from GitHub..."
+
+    $tempPath = $BaseImagePath + ".new"
+
     $cacheBust = [Uri]::EscapeDataString((Get-Date).ToString("yyyyMMddHHmmss"))
-    $u = ($RemoteImageUrl -replace '[\u200E\u200F\u202A-\u202E]', '').Trim()
+    $u = $RemoteImageUrl.Trim()
     $downloadUri = if ($u -match '\?') { "$u&ts=$cacheBust" } else { "$u?ts=$cacheBust" }
 
     try {
-        Invoke-WebRequest -Uri $downloadUri -OutFile $BaseImagePath -UseBasicParsing `
-            -Headers @{ 'Cache-Control'='no-cache'; 'Pragma'='no-cache' } -ErrorAction Stop
-        Write-Log "New image downloaded successfully."
-        return $true
+        Invoke-WebRequest -Uri $downloadUri -OutFile $tempPath -UseBasicParsing -TimeoutSec 15 -ErrorAction Stop
+
+        if ((Test-Path $tempPath) -and ((Get-Item $tempPath).Length -gt 0)) {
+            if (Test-Path $BaseImagePath) { Remove-Item $BaseImagePath -Force }
+            Move-Item -Path $tempPath -Destination $BaseImagePath -Force
+            Write-Log "Success: Background updated from GitHub."
+            return $true
+        } else {
+            throw "Downloaded file is empty or missing."
+        }
     }
     catch {
-        Write-Log "Failed to download image: $($_.Exception.Message)" -Level Error
-        return $false
+        Write-Log "Update failed: $($_.Exception.Message). Falling back to last successful image." -Level Warning
+        
+        if (Test-Path $tempPath) { Remove-Item $tempPath -Force -ErrorAction SilentlyContinue }
+
+        if (Test-Path $BaseImagePath) {
+            Write-Log "Using local version: $BaseImagePath"
+            return $true
+        } else {
+            Write-Log "Critical Error: No local background found and update failed." -Level Error
+            return $false
+        }
     }
 }
 
