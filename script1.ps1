@@ -110,6 +110,7 @@ function Get-BaseImage {
     }
     catch {
         Write-Log "Download failed ($($_.Exception.Message)). Reverting to local cache." -Level Warning
+        Write-Log "DEBUG: Remote URL is: '$remoteImageUrl'"
         if (Test-Path $tempPath) { Remove-Item $tempPath -Force -ErrorAction SilentlyContinue }
         return Test-Path $BaseImagePath
     }
@@ -165,7 +166,12 @@ if ($daysRemaining -lt 0) {
     Uninstall-Project
 }
 
-$remoteImageUrl = "https://raw.githubusercontent.com/$($script:Config.github.username)/$($script:Config.github.repository)/$($script:Config.github.branch)/$($script:Config.github.imagePath)"
+$uName = $script:Config.github.username.Trim()
+$uRepo = $script:Config.github.repository.Trim()
+$uBranch = $script:Config.github.branch.Trim()
+$uPath = $script:Config.github.imagePath.Trim()
+
+$remoteImageUrl = "https://raw.githubusercontent.com/$uName/$uRepo/$uBranch/$uPath"
 $baseImg = Join-Path $script:HiddenFolder "base_image.jpg"
 $finalImg = Join-Path $script:HiddenFolder "wallpaper_$(Get-Date -Format 'HHmm').jpg"
 
