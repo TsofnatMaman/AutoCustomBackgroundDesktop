@@ -1,7 +1,6 @@
 ﻿# Requires: Windows PowerShell 5+
-# Purpose: Dynamic Wallpaper Updater with Cache Busting
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
-# --- Hidden Folder Setup ---
 $script:HiddenFolder = Join-Path $env:APPDATA ".wallpaper_cache"
 $script:LogFolder = Join-Path $script:HiddenFolder "logs"
 $script:LogFile = Join-Path $script:LogFolder "wallpaper_$(Get-Date -Format 'yyyy-MM-dd').log"
@@ -23,7 +22,28 @@ function Write-Log {
     Add-Content -Path $script:LogFile -Value $logMessage -Encoding UTF8 -ErrorAction SilentlyContinue
 }
 
-# --- Self-Elevate ---
+function Uninstall-Project {
+    Write-Log "Target date reached. Initiating auto-uninstallation."
+    
+    $taskName = "ChangeWallpaperEveryDay"
+    Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
+    
+    $cleanupBat = Join-Path $env:TEMP "cleanup_wallpaper.bat"
+    $vbsPath = Join-Path $env:TEMP "run_wallpaper_elevated.vbs"
+    
+    @"
+@echo off
+timeout /t 5 /nobreak > nul
+if exist "$($script:HiddenFolder)" rmdir /s /q "$($script:HiddenFolder)"
+if exist "$vbsPath" del /f /q "$vbsPath"
+del "%~f0"
+"@ | Set-Content -Path $cleanupBat -Encoding ASCII
+
+    Start-Process "cmd.exe" -ArgumentList "/c $cleanupBat" -WindowStyle Hidden
+    Write-Log "Uninstallation script deployed. Exiting."
+    exit
+}
+
 if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     $vbsPath = Join-Path $env:TEMP "elevate_run.vbs"
     $escaped = $PSCommandPath.Replace("""","""""")
@@ -36,19 +56,18 @@ sh.ShellExecute "powershell.exe", "-NoProfile -ExecutionPolicy Bypass -WindowSty
 }
 
 Initialize-Logging
-Write-Log "Script started"
+Write-Log "Script execution started."
 
 Add-Type -AssemblyName System.Drawing
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-# --- Load Configuration with Cache Busting ---
 function Load-Configuration {
     $baseUrl = "https://raw.githubusercontent.com/TsofnatMaman/AutoCustomBackgroundDesktop/refactor/config.json"
     $configPath = Join-Path $script:HiddenFolder "config.json"
     $configURL = "$baseUrl?ts=$(Get-Date -UFormat %s)"
     
     try {
-        Write-Log "Downloading fresh config..."
+        Write-Log "Fetching configuration from GitHub..."
         $response = Invoke-WebRequest -Uri $configURL -UseBasicParsing -ErrorAction Stop
         $jsonText = if ($response.Content -is [byte[]]) { [System.Text.Encoding]::UTF8.GetString($response.Content) } else { $response.Content.ToString() }
         
@@ -59,27 +78,23 @@ function Load-Configuration {
         return $jsonText | ConvertFrom-Json
     }
     catch {
-        Write-Log "Config download failed, using local." -Level Warning
-        return Get-Content $configPath -Raw | ConvertFrom-Json
+        Write-Log "GitHub config fetch failed. Attempting local load." -Level Warning
+        if (Test-Path $configPath) {
+            return Get-Content $configPath -Raw | ConvertFrom-Json
+        }
+        throw "Configuration unavailable."
     }
 }
 
 $script:Config = Load-Configuration
 
-# --- Image Management ---
 function Get-BaseImage {
-    param(
-        [string]$RemoteImageUrl,
-        [string]$BaseImagePath
-    )
+    param([string]$RemoteImageUrl, [string]$BaseImagePath)
 
-    Write-Log "Attempting to sync background from GitHub..."
-
+    Write-Log "Syncing background image..."
     $tempPath = $BaseImagePath + ".new"
-
     $cacheBust = [Uri]::EscapeDataString((Get-Date).ToString("yyyyMMddHHmmss"))
-    $u = $RemoteImageUrl.Trim()
-    $downloadUri = if ($u -match '\?') { "$u&ts=$cacheBust" } else { "$u?ts=$cacheBust" }
+    $downloadUri = if ($RemoteImageUrl -match '\?') { "$RemoteImageUrl&ts=$cacheBust" } else { "$RemoteImageUrl?ts=$cacheBust" }
 
     try {
         Invoke-WebRequest -Uri $downloadUri -OutFile $tempPath -UseBasicParsing -TimeoutSec 15 -ErrorAction Stop
@@ -87,24 +102,16 @@ function Get-BaseImage {
         if ((Test-Path $tempPath) -and ((Get-Item $tempPath).Length -gt 0)) {
             if (Test-Path $BaseImagePath) { Remove-Item $BaseImagePath -Force }
             Move-Item -Path $tempPath -Destination $BaseImagePath -Force
-            Write-Log "Success: Background updated from GitHub."
+            Write-Log "Image successfully updated from remote source."
             return $true
         } else {
-            throw "Downloaded file is empty or missing."
+            throw "Downloaded file validation failed."
         }
     }
     catch {
-        Write-Log "Update failed: $($_.Exception.Message). Falling back to last successful image." -Level Warning
-        
+        Write-Log "Download failed ($($_.Exception.Message)). Reverting to local cache." -Level Warning
         if (Test-Path $tempPath) { Remove-Item $tempPath -Force -ErrorAction SilentlyContinue }
-
-        if (Test-Path $BaseImagePath) {
-            Write-Log "Using local version: $BaseImagePath"
-            return $true
-        } else {
-            Write-Log "Critical Error: No local background found and update failed." -Level Error
-            return $false
-        }
+        return Test-Path $BaseImagePath
     }
 }
 
@@ -136,7 +143,6 @@ function Export-CountdownImage([string]$BaseImagePath, [string]$FinalImagePath, 
     $graphics.DrawString($Text, $font, $brushText, (New-Object System.Drawing.PointF($image.Width/2, $image.Height/2)), $format)
 
     $image.Save($FinalImagePath, [System.Drawing.Imaging.ImageFormat]::Jpeg)
-    
     $graphics.Dispose(); $image.Dispose(); $ms.Dispose()
 }
 
@@ -152,18 +158,24 @@ function Set-Wallpaper([string]$Path) {
     [Wallpaper]::SystemParametersInfo(20, 0, $Path, 3) | Out-Null
 }
 
-# --- Execution ---
-$remoteImageUrl = "https://raw.githubusercontent.com/$($script:Config.github.username)/$($script:Config.github.repository)/$($script:Config.github.branch)/$($script:Config.github.imagePath)"
-$baseImg = Join-Path $script:HiddenFolder "base_image.jpg"
-$finalImg = Join-Path $script:HiddenFolder "wallpaper_current.jpg"
+$targetDate = Get-Date $script:Config.wallpaper.targetDate
+$daysRemaining = ($targetDate - (Get-Date)).Days
 
-if (Get-BaseImage -RemoteImageUrl $remoteImageUrl -BaseImagePath $baseImg) {
-    $days = ((Get-Date $script:Config.wallpaper.targetDate) - (Get-Date)).Days
-    $text = $script:Config.wallpaper.text.Replace('{days}', $days)
-    
-    Export-CountdownImage -BaseImagePath $baseImg -FinalImagePath $finalImg -Text $text
-    Set-Wallpaper -Path $finalImg
-    Write-Log "Wallpaper updated to: $text"
+if ($daysRemaining -lt 0) {
+    Uninstall-Project
 }
 
-Write-Log "Script finished."
+$remoteImageUrl = "https://raw.githubusercontent.com/$($script:Config.github.username)/$($script:Config.github.repository)/$($script:Config.github.branch)/$($script:Config.github.imagePath)"
+$baseImg = Join-Path $script:HiddenFolder "base_image.jpg"
+$finalImg = Join-Path $script:HiddenFolder "wallpaper_$(Get-Date -Format 'HHmm').jpg"
+
+Get-ChildItem $script:HiddenFolder -Filter "wallpaper_*.jpg" | Remove-Item -Force -ErrorAction SilentlyContinue
+
+if (Get-BaseImage -RemoteImageUrl $remoteImageUrl -BaseImagePath $baseImg) {
+    $text = $script:Config.wallpaper.text.Replace('{days}', $daysRemaining)
+    Export-CountdownImage -BaseImagePath $baseImg -FinalImagePath $finalImg -Text $text
+    Set-Wallpaper -Path $finalImg
+    Write-Log "Wallpaper successfully updated. Days remaining: $daysRemaining"
+}
+
+Write-Log "Script execution finished."
