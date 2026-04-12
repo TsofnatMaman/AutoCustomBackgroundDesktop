@@ -61,23 +61,52 @@ Write-Log "Script started - PowerShell version: $($PSVersionTable.PSVersion)"
 Add-Type -AssemblyName System.Drawing
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-# --- Load Configuration ---
+# --- Load Configuration (from GitHub every run) ---
 function Load-Configuration {
-    $configPath = Join-Path (Split-Path $PSCommandPath -Parent) "config.json"
-    
-    if (-not (Test-Path $configPath)) {
-        Write-Log "Config file not found at $configPath" -Level Error
-        exit 1
-    }
+    $configURL = "https://raw.githubusercontent.com/TsofnatMaman/AutoCustomBackgroundDesktop/refactor/config.json"
+    $configPath = Join-Path $script:HiddenFolder "config.json"
     
     try {
-        $config = Get-Content -Path $configPath -Raw | ConvertFrom-Json
-        Write-Log "Configuration loaded successfully"
+        Write-Log "Downloading config from GitHub..."
+        $response = Invoke-WebRequest -Uri $configURL -UseBasicParsing -ErrorAction Stop
+        $jsonText = if ($response.Content -is [string]) { $response.Content } else { $response.Content | Out-String }
+        
+        # Remove BOM if present
+        if ($jsonText.StartsWith([char]0xFEFF)) {
+            $jsonText = $jsonText.Substring(1)
+        }
+        
+        # Save to cache folder with UTF-8 encoding
+        $utf8 = New-Object System.Text.UTF8Encoding $false  # false = no BOM
+        [System.IO.File]::WriteAllText($configPath, $jsonText, $utf8)
+        
+        $config = $jsonText | ConvertFrom-Json
+        Write-Log "Configuration loaded successfully from GitHub"
         return $config
     }
     catch {
-        Write-Log "Failed to parse config.json: $($_.Exception.Message)" -Level Error
-        exit 1
+        Write-Log "Failed to download config from GitHub: $($_.Exception.Message)" -Level Warning
+        
+        # Fallback to local cached config if download fails
+        if (Test-Path $configPath) {
+            Write-Log "Using cached config as fallback"
+            try {
+                $jsonText = [System.IO.File]::ReadAllText($configPath, [System.Text.Encoding]::UTF8)
+                # Remove BOM if present
+                if ($jsonText.StartsWith([char]0xFEFF)) {
+                    $jsonText = $jsonText.Substring(1)
+                }
+                $config = $jsonText | ConvertFrom-Json
+                return $config
+            }
+            catch {
+                Write-Log "Failed to load cached config: $($_.Exception.Message)" -Level Error
+                exit 1
+            }
+        } else {
+            Write-Log "No cached config available. Exiting." -Level Error
+            exit 1
+        }
     }
 }
 
