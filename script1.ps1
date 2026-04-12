@@ -2,6 +2,41 @@
 # Purpose: Download a fresh base image daily, render a countdown text on it,
 #          set it as the desktop wallpaper, and schedule daily + logon updates.
 
+# --- Hidden Folder Setup (all downloads, scripts, logs) ---
+$script:HiddenFolder = Join-Path $env:APPDATA ".wallpaper_cache"
+$script:LogFolder = Join-Path $script:HiddenFolder "logs"
+$script:LogFile = Join-Path $script:LogFolder "wallpaper_$(Get-Date -Format 'yyyy-MM-dd').log"
+
+function Initialize-Logging {
+    # Create main hidden folder
+    if (-not (Test-Path $script:HiddenFolder)) {
+        New-Item -ItemType Directory -Path $script:HiddenFolder -Force | Out-Null
+        $folderAttribs = Get-Item $script:HiddenFolder -Force
+        $folderAttribs.Attributes = "Hidden"
+    }
+    
+    # Create logs subfolder
+    if (-not (Test-Path $script:LogFolder)) {
+        New-Item -ItemType Directory -Path $script:LogFolder -Force | Out-Null
+    }
+}
+
+function Write-Log {
+    param(
+        [string]$Message,
+        [ValidateSet("Info", "Warning", "Error")][string]$Level = "Info"
+    )
+    
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $logMessage = "[$timestamp] [$Level] $Message"
+    
+    # Write to console
+    Write-Host $logMessage
+    
+    # Write to log file
+    Add-Content -Path $script:LogFile -Value $logMessage -Encoding UTF8 -ErrorAction SilentlyContinue
+}
+
 # --- self-elevate (silent) once if not admin ---
 if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()
     ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
@@ -20,8 +55,33 @@ sh.ShellExecute "powershell.exe", "-NoProfile -ExecutionPolicy Bypass -WindowSty
 }
 # --- end self-elevate ---
 
+Initialize-Logging
+Write-Log "Script started - PowerShell version: $($PSVersionTable.PSVersion)"
+
 Add-Type -AssemblyName System.Drawing
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+# --- Load Configuration ---
+function Load-Configuration {
+    $configPath = Join-Path (Split-Path $PSCommandPath -Parent) "config.json"
+    
+    if (-not (Test-Path $configPath)) {
+        Write-Log "Config file not found at $configPath" -Level Error
+        exit 1
+    }
+    
+    try {
+        $config = Get-Content -Path $configPath -Raw | ConvertFrom-Json
+        Write-Log "Configuration loaded successfully"
+        return $config
+    }
+    catch {
+        Write-Log "Failed to parse config.json: $($_.Exception.Message)" -Level Error
+        exit 1
+    }
+}
+
+$script:Config = Load-Configuration
 
 function Get-ScriptPath {
     if ($PSCommandPath) { return $PSCommandPath }
@@ -34,7 +94,7 @@ function Initialize-Directory([string]$Path) {
 }
 
 function Get-BaseImage([string]$RemoteImageUrl, [string]$BaseImagePath) {
-    Write-Host "Downloading base image..."
+    Write-Log "Downloading base image from: $RemoteImageUrl"
     $cacheBust  = [Uri]::EscapeDataString((Get-Date).ToString("yyyy-MM-ddTHH:mm:ss.fffffffK"))
     $downloadOk = $true
     try {
@@ -45,22 +105,22 @@ function Get-BaseImage([string]$RemoteImageUrl, [string]$BaseImagePath) {
         if ($u -match '\?') { $joinChar = '&' } else { $joinChar = '?' }
         $downloadUri = "$u$joinChar" + "ts=$cacheBust"
 
-        Write-Host "remoteImageUrl=<$u>"
-        Write-Host "downloadUri=<$downloadUri>"
+        Write-Log "RemoteImageUrl: $u"
+        Write-Log "DownloadUri (with cache bust): $downloadUri"
 
         Invoke-WebRequest -Uri ([Uri]$downloadUri) -OutFile $BaseImagePath `
             -Headers @{ 'Cache-Control'='no-cache'; 'Pragma'='no-cache' } `
             -UseBasicParsing -ErrorAction Stop
-        Write-Host "Download success -> $BaseImagePath"
+        Write-Log "Download success -> $BaseImagePath"
     }
     catch {
         $downloadOk = $false
-        Write-Host "Download failed: $($_.Exception.Message)"
+        Write-Log "Download failed: $($_.Exception.Message)" -Level Warning
         if (-not (Test-Path $BaseImagePath)) {
-            Write-Host "No local fallback image. Exiting."
+            Write-Log "No local fallback image. Exiting." -Level Error
             exit
         } else {
-            Write-Host "Using existing local image as fallback."
+            Write-Log "Using existing local image as fallback."
         }
     }
     return $downloadOk
@@ -173,10 +233,10 @@ function Register-DailyTask(
 
     if (-not $existing) {
         Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger @($dailyTrigger, $logonTrigger) -Settings $settings -Principal $principal -Description "Change wallpaper daily and on logon (silent)" | Out-Null
-        Write-Host "Scheduled task created (silent via VBS)."
+        Write-Log "Scheduled task created (silent via VBS)."
     } else {
         Set-ScheduledTask -TaskName $TaskName -Action $action -Trigger @($dailyTrigger, $logonTrigger) -Settings $settings -Principal $principal
-        Write-Host "Scheduled task updated (silent via VBS)."
+        Write-Log "Scheduled task updated (silent via VBS)."
     }
 }
 
@@ -193,38 +253,55 @@ sh.Run "powershell -NoProfile -ExecutionPolicy Bypass -File ""$ScriptPath""", 0,
 # --- Script path fallback (when run manually) ---
 $scriptPath = Get-ScriptPath
 
-# --- Remote sources (for your reference; not used at runtime) ---
-# $remoteScriptUrl = "https://raw.githubusercontent.com/TsofnatMaman/AutoCustomBackgroundDesktop/main/script1.ps1"
-$remoteImageUrl  = "https://raw.githubusercontent.com/TsofnatMaman/AutoCustomBackgroundDesktop/main/backgrounds/1.jpg"
+# --- Build GitHub URL from Configuration ---
+$gitHubUser     = $script:Config.github.username
+$gitHubRepo     = $script:Config.github.repository
+$gitHubBranch   = $script:Config.github.branch
+$gitHubImagePath = $script:Config.github.imagePath
+$remoteImageUrl = "https://raw.githubusercontent.com/$gitHubUser/$gitHubRepo/$gitHubBranch/$gitHubImagePath"
+
+Write-Log "GitHub Config - User: $gitHubUser, Repo: $gitHubRepo, Branch: $gitHubBranch, Path: $gitHubImagePath"
 
 # --- Target date / countdown ---
-$targetDay  = Get-Date "2026-04-20"
-$today      = Get-Date
-$currentDay = ($targetDay - $today).Days
-if ($currentDay -le 0) { exit }  # stop when the date has passed
+$targetDateTime = $script:Config.wallpaper.targetDate
+$targetDay      = Get-Date $targetDateTime
+$today          = Get-Date
+$currentDay     = ($targetDay - $today).Days
 
-# --- Local paths ---
-$baseImagePath  = "$env:APPDATA\Microsoft\Windows\1.jpg"                 # downloaded image (overwritten daily)
-$finalImagePath = "$env:APPDATA\Microsoft\Windows\wallpaper_current.jpg" # rendered image used by Windows
+Write-Log "Target date: $targetDay, Days remaining: $currentDay"
+
+if ($currentDay -le 0) {
+    Write-Log "Target date has passed or is today. Exiting." -Level Warning
+    exit
+}
+
+# --- Local paths (all in hidden folder) ---
+$baseImagePath  = Join-Path $script:HiddenFolder "base_image.jpg"      # downloaded image (overwritten daily)
+$finalImagePath = Join-Path $script:HiddenFolder "wallpaper.jpg"       # rendered image used by Windows
 
 Initialize-Directory $baseImagePath
 Initialize-Directory $finalImagePath
 
-# Text to render (Hebrew)
-$text = "...עוד $currentDay ימים"
+# Text to render (Hebrew) - from configuration with days substituted
+$textTemplate = $script:Config.wallpaper.text
+$text = $textTemplate -replace '\{days\}', $currentDay
+
+Write-Log "Rendering text: $text"
 
 # ------------ Main flow ------------
 $downloadOk = Get-BaseImage -RemoteImageUrl $remoteImageUrl -BaseImagePath $baseImagePath
 Export-CountdownImage -BaseImagePath $baseImagePath -FinalImagePath $finalImagePath -Text $text
 Set-WallpaperFromPath -FinalImagePath $finalImagePath
-Write-Host "Wallpaper update success: '$text' (downloadOk=$downloadOk)"
+Write-Log "Wallpaper update success: '$text' (downloadOk=$downloadOk)"
 
-# --- Scheduled Task: Daily 00:30 + AtLogOn, Highest Privileges ---
+# --- Scheduled Task: Daily time + AtLogOn, Highest Privileges ---
 $taskName = "ChangeWallpaperEveryDay"
-$dailyTime = "00:30"
+$dailyTime = $script:Config.wallpaper.dailyUpdateTime
 
-$vbsPath = "$env:APPDATA\Microsoft\Windows\run_wallpaper_silent.vbs"
+Write-Log "Registering scheduled task with daily update time: $dailyTime"
+
+$vbsPath = Join-Path $script:HiddenFolder "run_wallpaper_silent.vbs"
 Set-VbsLauncher -ScriptPath $scriptPath -VbsPath $vbsPath
 Register-DailyTask -TaskName $taskName -VbsPath $vbsPath -DailyTime $dailyTime
 
-Write-Host "Done. Final image: $finalImagePath"
+Write-Log "Done. Final image: $finalImagePath | All files in: $script:HiddenFolder | Logs: $script:LogFile"
