@@ -1,4 +1,4 @@
-Import-Module "./modules/Logging.psm1"
+Import-Module (Join-Path $PSScriptRoot "Logging.psm1")
 
 function Get-BaseImage {
     param(

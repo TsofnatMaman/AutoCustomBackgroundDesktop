@@ -35,7 +35,9 @@ function Set-Wallpaper {
             public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
         }
 "@
-        Add-Type -TypeDefinition $code -ErrorAction SilentlyContinue
+        if (-not ("Wallpaper" -as [type])) {
+           Add-Type -TypeDefinition $code -ErrorAction SilentlyContinue
+        }
         $result = [Wallpaper]::SystemParametersInfo(0x0014, 0, $Path, 0x01 -bor 0x02)
         Write-Log -Message "Wallpaper set successfully (return code: $result)" -Level "Info" -LogFile $LogFile
         return $true
@@ -80,6 +82,6 @@ function Get-DaysRemaining {
     }
 }
 
-Import-Module "./modules/Logging.psm1"
+Import-Module (Join-Path $PSScriptRoot "Logging.psm1")
 
 Export-ModuleMember -Function Ensure-Admin, Set-Wallpaper, Acquire-Mutex, Get-DaysRemaining

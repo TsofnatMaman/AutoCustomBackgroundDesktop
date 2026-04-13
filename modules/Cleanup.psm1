@@ -55,6 +55,6 @@ function Uninstall-Project {
     exit
 }
 
-Import-Module "./modules/Logging.psm1"
+Import-Module (Join-Path $PSScriptRoot "Logging.psm1")
 
 Export-ModuleMember -Function Uninstall-Project, Remove-ScheduledTaskSafe, Remove-HiddenFolderSafe
