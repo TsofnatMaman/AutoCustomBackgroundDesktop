@@ -1,35 +1,29 @@
 function Ensure-Admin {
     param($Config)
+    
+    $currentPrincipal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+    $isAdmin = $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 
-    if (-not ([Security.Principal.WindowsPrincipal]
-        [Security.Principal.WindowsIdentity]::GetCurrent()
-    ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-
-        $vbs = Join-Path $env:TEMP "elevate.vbs"
-        $escaped = $PSCommandPath.Replace('"','""')
-
-@"
-Set UAC = CreateObject("Shell.Application")
-UAC.ShellExecute "powershell.exe", "-File ""$escaped""", "", "runas", 0
-"@ | Set-Content $vbs
-
-        Start-Process "wscript.exe" $vbs
+    if (-not $isAdmin) {
+        Write-Host "Requesting administrative privileges..." -ForegroundColor Yellow
+        Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
         exit
     }
 }
 
 function Set-Wallpaper {
     param([string]$Path)
-
-    Add-Type @"
-using System.Runtime.InteropServices;
-public class Wallpaper {
-[DllImport("user32.dll")]
-public static extern bool SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
-}
+    
+    $code = @"
+    using System;
+    using System.Runtime.InteropServices;
+    public class Wallpaper {
+        [DllImport("user32.dll", CharSet = CharSet.Auto)]
+        public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
+    }
 "@
-
-    [Wallpaper]::SystemParametersInfo(20, 0, $Path, 3) | Out-Null
+    Add-Type -TypeDefinition $code -ErrorAction SilentlyContinue
+    [Wallpaper]::SystemParametersInfo(0x0014, 0, $Path, 0x01 -bor 0x02)
 }
 
 Export-ModuleMember -Function Ensure-Admin, Set-Wallpaper
