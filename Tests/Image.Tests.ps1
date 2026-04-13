@@ -1,4 +1,5 @@
-Import-Module "./modules/Image.psm1" -Force
+Import-Module "./modules/Image.psm1"
+Import-Module "./modules/Logging.psm1"
 
 Describe "Image Module" {
 
@@ -59,6 +60,55 @@ Describe "Image Module" {
             $r | Should -BeFalse
 
             Assert-MockCalled Write-Log -ModuleName Image -Times 1
+        }
+    }
+}
+
+Describe "Build-ImageUrl Tests" {
+    It "Should correctly format the GitHub raw URL" {
+        $mockCfg = @{
+            github = @{
+                username   = "User123"
+                repository = "MyRepo"
+                branch     = "main"
+                imagePath  = "assets/bg.jpg"
+            }
+        }
+        
+        $expected = "https://raw.githubusercontent.com/User123/MyRepo/main/assets/bg.jpg"
+        $result = Build-ImageUrl -cfg $mockCfg
+        
+        $result | Should -BeExactly $expected
+    }
+}
+
+Describe "Update-WallpaperFlow Tests" {
+    
+    BeforeEach {
+        $script:AppDir = "C:\MockDir"
+        $script:LogFile = "C:\MockDir\log.txt"
+        $script:daysRemaining = 5
+        
+        $script:mockCfg = @{
+            wallpaper = @{ text = "Only {days} days left!" }
+            github    = @{ 
+                username = "test"; repository = "test"; branch = "main"; imagePath = "img.jpg" 
+            }
+        }
+
+        Mock Write-Log {} -ModuleName Image
+        Mock Get-BaseImage { return $true } -ModuleName Image
+        Mock Export-CountdownImage {} -ModuleName Image
+        Mock Set-Wallpaper {} -ModuleName Image
+    }
+
+    It "Should process the text and call wallpaper update" {
+        {
+            Update-WallpaperFlow -cfg $script:mockCfg -AppDir $script:AppDir -LogFile $script:LogFile -daysRemaining $script:daysRemaining
+        } | Should -Not -Throw
+        
+        Assert-MockCalled Export-CountdownImage -ModuleName Image -ParameterFilter {
+            $null -ne $Base -and $null -ne $Output -and $Text -eq "Only 5 days left!"
         }
     }
 }

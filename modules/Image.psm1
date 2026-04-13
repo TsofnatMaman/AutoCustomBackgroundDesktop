@@ -128,4 +128,29 @@ function Export-CountdownImage {
     }
 }
 
-Export-ModuleMember -Function Get-BaseImage, Export-CountdownImage
+function Build-ImageUrl {
+    param($cfg)
+
+    return "https://raw.githubusercontent.com/$($cfg.github.username)/$($cfg.github.repository)/$($cfg.github.branch)/$($cfg.github.imagePath)"
+}
+
+function Update-WallpaperFlow {
+    param($cfg, $AppDir, $LogFile, $daysRemaining)
+
+    $baseImgPath = Join-Path $AppDir "base.jpg"
+    $finalImgPath = Join-Path $AppDir "wallpaper.jpg"
+
+    $url = Build-ImageUrl $cfg
+    Write-Log -Message "Fetching: $url" -LogFile $LogFile
+
+    if (Get-BaseImage -Url $url -Path $baseImgPath -LogFile $LogFile) {
+        $msgText = $cfg.wallpaper.text.Replace("{days}", $daysRemaining)
+
+        Export-CountdownImage -Base $baseImgPath -Output $finalImgPath -Text $msgText -LogFile $LogFile
+        Set-Wallpaper -Path $finalImgPath
+
+        Write-Log -Message "Wallpaper updated successfully." -LogFile $LogFile
+    }
+}
+
+Export-ModuleMember -Function Get-BaseImage, Export-CountdownImage, Build-ImageUrl, Update-WallpaperFlow

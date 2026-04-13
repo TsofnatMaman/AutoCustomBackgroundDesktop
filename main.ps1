@@ -1,73 +1,44 @@
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$ErrorActionPreference = "Stop"
+function Initialize-App {
+    param($cfg)
 
-# טעינת מודולים
-Import-Module "$PSScriptRoot\modules\Logging.psm1"
-Import-Module "$PSScriptRoot\modules\Config.psm1"
-Import-Module "$PSScriptRoot\modules\Image.psm1"
-Import-Module "$PSScriptRoot\modules\System.psm1"
-Import-Module "$PSScriptRoot\modules\Cleanup.psm1"
+    $fName = if ($cfg.app.appFolder) { $cfg.app.appFolder } else { ".wallpaper_cache" }
+    $AppDir = Join-Path $env:APPDATA $fName
+    $LogFolder = Join-Path $AppDir "logs"
 
-# 1. טעינת קונפיגורציה
+    if (-not (Test-Path $LogFolder)) {
+        New-Item -ItemType Directory -Path $LogFolder -Force | Out-Null
+    }
+
+    return @{
+        AppDir = $AppDir
+        LogFolder = $LogFolder
+    }
+}
+
 $cfg = Load-Configuration -Root $PSScriptRoot
 
-# 2. הגדרת נתיבים
-$fName = if ($cfg.app.appFolder) { $cfg.app.appFolder } else { ".wallpaper_cache" }
-$AppDir = Join-Path $env:APPDATA $fName
-$LogFolder = Join-Path $AppDir "logs"
+Ensure-Admin
 
-if (-not (Test-Path $LogFolder)) { New-Item -ItemType Directory -Path $LogFolder -Force | Out-Null }
+$app = Initialize-App $cfg
+$LogFile = Get-LogFile $app.LogFolder
 
-$CurrentDate = Get-Date -Format "yyyy-MM-dd"
-$LogFile = [string](Join-Path $LogFolder "wallpaper_$CurrentDate.log")
-
-# 3. אתחול
-Ensure-Admin -Config $cfg
-Initialize-Logging -AppDir $AppDir -LogFolder $LogFolder
-
+Initialize-Logging -AppDir $app.AppDir -LogFolder $app.LogFolder
 Write-Log -Message "=== Script Started ===" -LogFile $LogFile
 
+$mutexName = if ($cfg.system.mutexName) { $cfg.system.mutexName } else { "WallpaperLock" }
+$mutex = Acquire-Mutex $mutexName
+if (-not $mutex) { exit }
+
 try {
-    # וידוא נתיבי תמונות
-    $baseImgPath = [string](Join-Path $AppDir "base.jpg")
-    $finalImgPath = [string](Join-Path $AppDir "wallpaper.jpg")
-
-    # מניעת הרצה כפולה
-    $mName = if ($cfg.system.mutexName) { $cfg.system.mutexName } else { "WallpaperLock" }
-    $mutex = New-Object System.Threading.Mutex($false, $mName)
-    if (-not $mutex.WaitOne(0)) { exit }
-
-    # חישוב ימים
-    $targetDate = Get-Date $cfg.wallpaper.targetDate
-    $daysRemaining = ($targetDate - (Get-Date)).Days
+    $daysRemaining = Get-DaysRemaining (Get-Date $cfg.wallpaper.targetDate)
 
     if ($daysRemaining -lt 0) {
         Write-Log -Message "Target date passed." -LogFile $LogFile
-        Uninstall-Project -Config $cfg -AppDir $AppDir
+        Uninstall-Project -Config $cfg -AppDir $app.AppDir
         return
     }
 
-    # בניית URL
-    $u = "$($cfg.github.username)".Trim()
-    $r = "$($cfg.github.repository)".Trim()
-    $b = "$($cfg.github.branch)".Trim()
-    $p = "$($cfg.github.imagePath)".Trim()
-    $remoteImageUrl = [string]"https://raw.githubusercontent.com/$u/$r/$b/$p"
-
-    Write-Log -Message "Fetching: $remoteImageUrl" -LogFile $LogFile
-
-    # --- קריאה לפונקציה עם המרה מפורשת לטקסט ---
-    $downloadSuccess = Get-BaseImage -Url $remoteImageUrl -Path $baseImgPath -LogFile $LogFile
-
-    if ($downloadSuccess) {
-        $msgText = $cfg.wallpaper.text.Replace("{days}", $daysRemaining)
-        Export-CountdownImage -Base $baseImgPath -Output $finalImgPath -Text $msgText -LogFile $LogFile
-        Set-Wallpaper -Path $finalImgPath
-        Write-Log -Message "Wallpaper updated successfully." -LogFile $LogFile
-    }
-}
-catch {
-    Write-Log -Message "FATAL ERROR: $($_.Exception.Message)" -Level "Error" -LogFile $LogFile
+    Update-WallpaperFlow $cfg $app.AppDir $LogFile $daysRemaining
 }
 finally {
     if ($mutex) { $mutex.ReleaseMutex(); $mutex.Dispose() }
