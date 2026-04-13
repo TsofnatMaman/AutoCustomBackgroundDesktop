@@ -20,6 +20,49 @@ function Load-Configuration {
     }
 }
 
+function Get-RemoteConfigUrl {
+    param($cfg)
+
+    if (-not $cfg -or -not $cfg.github) {
+        throw "Missing github settings in configuration."
+    }
+
+    $username = $cfg.github.username
+    $repository = $cfg.github.repository
+    $branch = $cfg.github.branch
+    $configPath = if ($cfg.github.configPath) { $cfg.github.configPath } else { "config.json" }
+
+    if ([string]::IsNullOrWhiteSpace($username) -or [string]::IsNullOrWhiteSpace($repository) -or [string]::IsNullOrWhiteSpace($branch)) {
+        throw "github.username/repository/branch must be set in config.json"
+    }
+
+    return "https://raw.githubusercontent.com/$username/$repository/$branch/$configPath"
+}
+
+function Update-ConfigurationFromRemote {
+    param(
+        [string]$Root,
+        $cfg,
+        [string]$LogFile
+    )
+
+    $path = Join-Path $Root "config.json"
+
+    try {
+        $url = Get-RemoteConfigUrl -cfg $cfg
+        Write-Log -Message "Downloading latest configuration from: $url" -Level "Info" -LogFile $LogFile
+
+        Invoke-WebRequest -Uri $url -OutFile $path -ErrorAction Stop
+
+        Write-Log -Message "Configuration refreshed successfully at: $path" -Level "Info" -LogFile $LogFile
+        return $true
+    }
+    catch {
+        Write-Log -Message "Configuration refresh failed: $($_.Exception.Message)" -Level "Warning" -LogFile $LogFile
+        return $false
+    }
+}
+
 Import-Module (Join-Path $PSScriptRoot "Logging.psm1")
 
-Export-ModuleMember -Function Load-Configuration
+Export-ModuleMember -Function Load-Configuration, Get-RemoteConfigUrl, Update-ConfigurationFromRemote

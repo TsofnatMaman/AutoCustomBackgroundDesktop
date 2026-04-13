@@ -21,15 +21,26 @@ Import-Module "$PSScriptRoot\modules\Image.psm1" -Force
 Import-Module "$PSScriptRoot\modules\System.psm1" -Force
 Import-Module "$PSScriptRoot\modules\Cleanup.psm1" -Force
 
-$cfg = Load-Configuration -Root $PSScriptRoot -LogFile ""
+$bootstrapCfg = Load-Configuration -Root $PSScriptRoot -LogFile ""
 
 Ensure-Admin -LogFile ""
+
+$configUpdated = Update-ConfigurationFromRemote -Root $PSScriptRoot -cfg $bootstrapCfg -LogFile ""
+
+$cfg = Load-Configuration -Root $PSScriptRoot -LogFile ""
 
 $app = Initialize-App $cfg
 $LogFile = Get-LogFile $app.LogFolder
 
 Initialize-Logging -AppDir $app.AppDir -LogFolder $app.LogFolder
 Write-Log -Message "=== Script Started ===" -LogFile $LogFile
+
+if ($configUpdated) {
+    Write-Log -Message "Latest config.json downloaded before wallpaper update." -LogFile $LogFile
+}
+else {
+    Write-Log -Message "Could not refresh config.json from remote. Using local config." -Level "Warning" -LogFile $LogFile
+}
 
 $mutexName = if ($cfg.system.mutexName) { $cfg.system.mutexName } else { "WallpaperLock" }
 $mutex = Acquire-Mutex $mutexName -LogFile $LogFile
