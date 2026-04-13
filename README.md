@@ -100,11 +100,11 @@ install ps2exe module
 
 ``` PS
 Invoke-ps2exe .\install.ps1 .\install.exe `
->>   -noConsole `
->>   -requireAdmin `
->>   -iconFile .\icon.ico `
->>   -title "Wallpaper Installer" `
->>   -description "Installs wallpaper automation"
+   -noConsole `
+   -requireAdmin `
+   -iconFile .\icon.ico `
+   -title "Wallpaper Installer" `
+   -description "Installs wallpaper automation"
 ```
 
 ## for run the tests:

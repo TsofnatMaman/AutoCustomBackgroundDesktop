@@ -38,4 +38,11 @@ function Write-Log {
     }
 }
 
-Export-ModuleMember -Function Initialize-Logging, Write-Log
+function Get-LogFile {
+    param($LogFolder)
+
+    $CurrentDate = Get-Date -Format "yyyy-MM-dd"
+    return Join-Path $LogFolder "wallpaper_$CurrentDate.log"
+}
+
+Export-ModuleMember -Function Write-Log, Initialize-Logging, Get-LogFile
