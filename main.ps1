@@ -1,3 +1,7 @@
+param(
+    [switch]$SkipRemoteConfig
+)
+
 function Initialize-App {
     param($cfg)
 
@@ -23,9 +27,12 @@ Import-Module "$PSScriptRoot\modules\Cleanup.psm1" -Force
 
 $bootstrapCfg = Load-Configuration -Root $PSScriptRoot -LogFile ""
 
-Ensure-Admin -LogFile ""
+Ensure-Admin -LogFile "" -ScriptPath $PSCommandPath -SkipRemoteConfig:$SkipRemoteConfig
 
-$configUpdated = Update-ConfigurationFromRemote -Root $PSScriptRoot -cfg $bootstrapCfg -LogFile ""
+$configUpdated = $false
+if (-not $SkipRemoteConfig) {
+    $configUpdated = Update-ConfigurationFromRemote -Root $PSScriptRoot -cfg $bootstrapCfg -LogFile ""
+}
 
 $cfg = Load-Configuration -Root $PSScriptRoot -LogFile ""
 
@@ -37,6 +44,9 @@ Write-Log -Message "=== Script Started ===" -LogFile $LogFile
 
 if ($configUpdated) {
     Write-Log -Message "Latest config.json downloaded before wallpaper update." -LogFile $LogFile
+}
+elseif ($SkipRemoteConfig) {
+    Write-Log -Message "SkipRemoteConfig is enabled. Using local config.json only." -Level "Warning" -LogFile $LogFile
 }
 else {
     Write-Log -Message "Could not refresh config.json from remote. Using local config." -Level "Warning" -LogFile $LogFile

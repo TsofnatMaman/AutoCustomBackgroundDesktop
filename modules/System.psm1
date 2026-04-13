@@ -1,5 +1,9 @@
 function Ensure-Admin {
-    param([string]$LogFile)
+    param(
+        [string]$LogFile,
+        [string]$ScriptPath,
+        [switch]$SkipRemoteConfig
+    )
     
     $currentPrincipal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
     $isAdmin = $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
@@ -9,7 +13,27 @@ function Ensure-Admin {
     if (-not $isAdmin) {
         Write-Log -Message "Not running as admin. Requesting administrative privileges..." -Level "Warning" -LogFile $LogFile
         Write-Host "Requesting administrative privileges..." -ForegroundColor Yellow
-        Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
+        $targetScript = if ([string]::IsNullOrWhiteSpace($ScriptPath)) { $PSCommandPath } else { $ScriptPath }
+
+        if (-not [string]::IsNullOrWhiteSpace($targetScript)) {
+            $argumentList = @(
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                "`"$targetScript`""
+            )
+
+            if ($SkipRemoteConfig) {
+                $argumentList += "-SkipRemoteConfig"
+            }
+
+            Start-Process powershell.exe -ArgumentList ($argumentList -join " ") -Verb RunAs
+        }
+        else {
+            Start-Process powershell.exe -Verb RunAs
+        }
+
         exit
     }
     
