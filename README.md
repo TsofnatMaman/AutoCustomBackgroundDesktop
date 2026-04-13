@@ -114,3 +114,9 @@ install Pester -RequiredVersion 5.0.0
 ```PS
 Invoke-Pester .\Tests
 ```
+
+## for uninstall run from **adminitrator PS**
+
+```PS
+uninstall.ps1
+```

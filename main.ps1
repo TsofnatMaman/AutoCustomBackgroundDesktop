@@ -40,7 +40,7 @@ try {
 
     if ($daysRemaining -lt 0) {
         Write-Log -Message "Target date passed." -LogFile $LogFile
-        Uninstall-Project -HiddenFolder $app.AppDir -LogFile $LogFile
+        Uninstall-Project -LogFile $LogFile
         return
     }
 
