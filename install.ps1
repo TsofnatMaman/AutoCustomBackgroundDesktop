@@ -138,11 +138,19 @@ try {
 
     Write-Log -Message "main.ps1 verified successfully" -Level "Info" -LogFile $LogFile
 
+    $launcherVbs = Join-Path $projectFolder.FullName "run-main-hidden.vbs"
+    $vbs = @"
+Set sh = CreateObject("WScript.Shell")
+sh.Run "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""$main""", 0, False
+"@
+    Set-Content -Path $launcherVbs -Value $vbs -Encoding ASCII
+    Write-Log -Message "Hidden VBS launcher created: $launcherVbs" -Level "Info" -LogFile $LogFile
+
     Write-Log -Message "Creating scheduled task..." -Level "Info" -LogFile $LogFile
 
     $action = New-ScheduledTaskAction `
-        -Execute "powershell.exe" `
-        -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$main`""
+        -Execute "wscript.exe" `
+        -Argument "`"$launcherVbs`""
 
     Write-Log -Message "Scheduled task action created" -Level "Info" -LogFile $LogFile
 
@@ -181,7 +189,7 @@ try {
     Write-Log -Message "Scheduled task registered successfully" -Level "Info" -LogFile $LogFile
 
     Write-Log -Message "Starting main script manually..." -Level "Info" -LogFile $LogFile
-    Start-Process powershell.exe "-WindowStyle Hidden -File `"$main`"" | Out-Null
+    Start-Process wscript.exe -ArgumentList "`"$launcherVbs`"" -WindowStyle Hidden | Out-Null
     Write-Log -Message "Main script launched" -Level "Info" -LogFile $LogFile
 
     Write-Log -Message "===== Installation completed successfully =====" -Level "Info" -LogFile $LogFile

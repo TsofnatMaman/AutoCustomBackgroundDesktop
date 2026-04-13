@@ -24,6 +24,18 @@ function Ensure-Admin {
                 "`"$targetScript`""
             )
 
+            if (-not $NoHideWindow) {
+                $argumentList = @(
+                    "-NoProfile",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-WindowStyle",
+                    "Hidden",
+                    "-File",
+                    "`"$targetScript`""
+                )
+            }
+
             if ($SkipRemoteConfig) {
                 $argumentList += "-SkipRemoteConfig"
             }
@@ -35,7 +47,21 @@ function Ensure-Admin {
                 Start-Process powershell.exe -ArgumentList ($argumentList -join " ") -Verb RunAs
             }
             else {
-                Start-Process powershell.exe -ArgumentList ($argumentList -join " ") -Verb RunAs -WindowStyle Hidden
+                $joinedArguments = $argumentList -join " "
+
+                try {
+                    $vbsPath = Join-Path $env:TEMP ("elevate_wallpaper_" + [Guid]::NewGuid().ToString("N") + ".vbs")
+                    $vbsEscapedArgs = $joinedArguments.Replace('"', '""')
+                    $vbs = @"
+Set sh = CreateObject("Shell.Application")
+sh.ShellExecute "powershell.exe", "$vbsEscapedArgs", "", "runas", 0
+"@
+                    Set-Content -Path $vbsPath -Value $vbs -Encoding ASCII
+                    Start-Process wscript.exe -ArgumentList "`"$vbsPath`"" -WindowStyle Hidden
+                }
+                catch {
+                    Start-Process powershell.exe -ArgumentList $joinedArguments -Verb RunAs -WindowStyle Hidden
+                }
             }
         }
         else {
