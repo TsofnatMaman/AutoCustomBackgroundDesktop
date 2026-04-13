@@ -10,8 +10,10 @@ function Initialize-Logging {
 
 function Write-Log {
     param([string]$Message, [string]$Level = "Info")
+
     $logMessage = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] [$Level] $Message"
     Write-Host $logMessage
+
     Add-Content -Path $script:LogFile -Value $logMessage -Encoding UTF8 -ErrorAction SilentlyContinue
 }
 

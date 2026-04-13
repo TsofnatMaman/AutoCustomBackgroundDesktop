@@ -1,21 +1,42 @@
+function Remove-ScheduledTaskSafe {
+    param(
+        [string]$TaskName = "ChangeWallpaperEveryDay"
+    )
+
+    try {
+        Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
+        Write-Log "Scheduled task removed (if existed)."
+    }
+    catch {
+        Write-Log "Failed removing scheduled task: $($_.Exception.Message)" -Level Warning
+    }
+}
+
+function Remove-HiddenFolderSafe {
+    param(
+        [string]$HiddenFolder
+    )
+
+    try {
+        if (Test-Path $HiddenFolder) {
+            Remove-Item $HiddenFolder -Recurse -Force -ErrorAction SilentlyContinue
+            Write-Log "Hidden folder removed."
+        }
+    }
+    catch {
+        Write-Log "Failed removing hidden folder: $($_.Exception.Message)" -Level Warning
+    }
+}
+
 function Uninstall-Project {
     param([string]$HiddenFolder)
 
-    Write-Log "Target date reached. Initiating auto-uninstallation."
+    Write-Log "Auto-uninstall triggered."
 
-    Unregister-ScheduledTask -TaskName "ChangeWallpaperEveryDay" -Confirm:$false -ErrorAction SilentlyContinue
+    Remove-ScheduledTaskSafe
+    Remove-HiddenFolderSafe -HiddenFolder $HiddenFolder
 
-    $cleanupBat = Join-Path $env:TEMP "cleanup_wallpaper.bat"
-
-@"
-@echo off
-timeout /t 5 > nul
-rmdir /s /q "$HiddenFolder"
-del "%~f0"
-"@ | Set-Content $cleanupBat
-
-    Start-Process "cmd.exe" "/c $cleanupBat" -WindowStyle Hidden
     exit
 }
 
-Export-ModuleMember -Function Uninstall-Project
+Export-ModuleMember -Function Uninstall-Project, Remove-ScheduledTaskSafe, Remove-HiddenFolderSafe

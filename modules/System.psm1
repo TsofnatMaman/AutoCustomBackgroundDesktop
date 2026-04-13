@@ -3,15 +3,15 @@ function Ensure-Admin {
         [Security.Principal.WindowsIdentity]::GetCurrent()
     ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
 
-        $vbsPath = Join-Path $env:TEMP "elevate.vbs"
-        $escaped = $PSCommandPath.Replace("""","""""")
+        $vbs = Join-Path $env:TEMP "elevate.vbs"
+        $escaped = $PSCommandPath.Replace('"','""')
 
-        @"
-Set sh = CreateObject("Shell.Application")
-sh.ShellExecute "powershell.exe", "-File ""$escaped""", "", "runas", 0
-"@ | Set-Content $vbsPath
+@"
+Set UAC = CreateObject("Shell.Application")
+UAC.ShellExecute "powershell.exe", "-File ""$escaped""", "", "runas", 0
+"@ | Set-Content $vbs
 
-        Start-Process "wscript.exe" $vbsPath
+        Start-Process "wscript.exe" $vbs
         exit
     }
 }
@@ -22,8 +22,8 @@ function Set-Wallpaper {
     Add-Type @"
 using System.Runtime.InteropServices;
 public class Wallpaper {
-    [DllImport("user32.dll")]
-    public static extern bool SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
+[DllImport("user32.dll")]
+public static extern bool SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
 }
 "@
 
