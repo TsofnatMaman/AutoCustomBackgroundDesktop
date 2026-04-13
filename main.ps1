@@ -1,6 +1,41 @@
 param(
-    [switch]$SkipRemoteConfig
+    [switch]$SkipRemoteConfig,
+    [switch]$NoHideWindow
 )
+
+function Hide-ScriptWindow {
+    param([switch]$NoHideWindow)
+
+    if ($NoHideWindow) { return }
+
+    try {
+        if (-not ("ConsoleWin32" -as [type])) {
+            $code = @"
+using System;
+using System.Runtime.InteropServices;
+public static class ConsoleWin32 {
+    [DllImport("kernel32.dll")]
+    public static extern IntPtr GetConsoleWindow();
+
+    [DllImport("user32.dll")]
+    public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+}
+"@
+            Add-Type -TypeDefinition $code -ErrorAction SilentlyContinue
+        }
+
+        $handle = [ConsoleWin32]::GetConsoleWindow()
+        if ($handle -ne [IntPtr]::Zero) {
+            # SW_HIDE = 0
+            [void][ConsoleWin32]::ShowWindow($handle, 0)
+        }
+    }
+    catch {
+        # best effort only
+    }
+}
+
+Hide-ScriptWindow -NoHideWindow:$NoHideWindow
 
 function Initialize-App {
     param($cfg)
@@ -27,7 +62,7 @@ Import-Module "$PSScriptRoot\modules\Cleanup.psm1"
 
 $bootstrapCfg = Load-Configuration -Root $PSScriptRoot -LogFile ""
 
-Ensure-Admin -LogFile "" -ScriptPath $PSCommandPath -SkipRemoteConfig:$SkipRemoteConfig
+Ensure-Admin -LogFile "" -ScriptPath $PSCommandPath -SkipRemoteConfig:$SkipRemoteConfig -NoHideWindow:$NoHideWindow
 
 $configUpdated = $false
 if (-not $SkipRemoteConfig) {

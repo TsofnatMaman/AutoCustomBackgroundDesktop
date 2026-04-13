@@ -2,7 +2,8 @@ function Ensure-Admin {
     param(
         [string]$LogFile,
         [string]$ScriptPath,
-        [switch]$SkipRemoteConfig
+        [switch]$SkipRemoteConfig,
+        [switch]$NoHideWindow
     )
     
     $currentPrincipal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
@@ -26,11 +27,24 @@ function Ensure-Admin {
             if ($SkipRemoteConfig) {
                 $argumentList += "-SkipRemoteConfig"
             }
+            if ($NoHideWindow) {
+                $argumentList += "-NoHideWindow"
+            }
 
-            Start-Process powershell.exe -ArgumentList ($argumentList -join " ") -Verb RunAs -WindowStyle Hidden
+            if ($NoHideWindow) {
+                Start-Process powershell.exe -ArgumentList ($argumentList -join " ") -Verb RunAs
+            }
+            else {
+                Start-Process powershell.exe -ArgumentList ($argumentList -join " ") -Verb RunAs -WindowStyle Hidden
+            }
         }
         else {
-            Start-Process powershell.exe -Verb RunAs -WindowStyle Hidden
+            if ($NoHideWindow) {
+                Start-Process powershell.exe -Verb RunAs
+            }
+            else {
+                Start-Process powershell.exe -Verb RunAs -WindowStyle Hidden
+            }
         }
 
         exit
