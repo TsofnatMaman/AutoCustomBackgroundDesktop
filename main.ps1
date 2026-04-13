@@ -19,11 +19,11 @@ function Initialize-App {
     }
 }
 
-Import-Module "$PSScriptRoot\modules\Logging.psm1" -Force
-Import-Module "$PSScriptRoot\modules\Config.psm1" -Force
-Import-Module "$PSScriptRoot\modules\Image.psm1" -Force
-Import-Module "$PSScriptRoot\modules\System.psm1" -Force
-Import-Module "$PSScriptRoot\modules\Cleanup.psm1" -Force
+Import-Module "$PSScriptRoot\modules\Logging.psm1"
+Import-Module "$PSScriptRoot\modules\Config.psm1"
+Import-Module "$PSScriptRoot\modules\Image.psm1"
+Import-Module "$PSScriptRoot\modules\System.psm1"
+Import-Module "$PSScriptRoot\modules\Cleanup.psm1"
 
 $bootstrapCfg = Load-Configuration -Root $PSScriptRoot -LogFile ""
 

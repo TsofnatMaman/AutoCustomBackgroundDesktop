@@ -12,7 +12,6 @@ function Ensure-Admin {
     
     if (-not $isAdmin) {
         Write-Log -Message "Not running as admin. Requesting administrative privileges..." -Level "Warning" -LogFile $LogFile
-        Write-Host "Requesting administrative privileges..." -ForegroundColor Yellow
         $targetScript = if ([string]::IsNullOrWhiteSpace($ScriptPath)) { $PSCommandPath } else { $ScriptPath }
 
         if (-not [string]::IsNullOrWhiteSpace($targetScript)) {
@@ -28,10 +27,10 @@ function Ensure-Admin {
                 $argumentList += "-SkipRemoteConfig"
             }
 
-            Start-Process powershell.exe -ArgumentList ($argumentList -join " ") -Verb RunAs
+            Start-Process powershell.exe -ArgumentList ($argumentList -join " ") -Verb RunAs -WindowStyle Hidden
         }
         else {
-            Start-Process powershell.exe -Verb RunAs
+            Start-Process powershell.exe -Verb RunAs -WindowStyle Hidden
         }
 
         exit
