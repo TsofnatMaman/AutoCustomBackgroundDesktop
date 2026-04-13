@@ -1,3 +1,4 @@
+Import-Module "./modules/Logging.psm1"
 Import-Module "./modules/Config.psm1"
 
 Describe "Load-Configuration Tests" {
