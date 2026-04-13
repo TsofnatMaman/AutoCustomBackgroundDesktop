@@ -1,6 +1,12 @@
 $ErrorActionPreference = "Stop"
+$ProgressPreference = "SilentlyContinue"
 
-# --- Minimal inline functions (no external module dependencies) ---
+# --- Helper function for MessageBox dialog ---
+function Show-MessageBox {
+    param([string]$Message, [string]$Title = "Wallpaper Installer")
+    [System.Reflection.Assembly]::LoadWithPartialName("System.Windows.Forms") | Out-Null
+    return [System.Windows.Forms.MessageBox]::Show($Message, $Title, [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+}
 
 function Write-Log {
     param(
@@ -163,16 +169,16 @@ try {
     Write-Log -Message "Scheduled task registered successfully" -Level "Info" -LogFile $LogFile
 
     Write-Log -Message "Starting main script manually..." -Level "Info" -LogFile $LogFile
-    Start-Process powershell.exe "-File `"$main`""
-
+    Start-Process powershell.exe "-WindowStyle Hidden -File `"$main`"" | Out-Null
     Write-Log -Message "Main script launched" -Level "Info" -LogFile $LogFile
 
     Write-Log -Message "===== Installation completed successfully =====" -Level "Info" -LogFile $LogFile
+    [void] (Show-MessageBox -Message "✓ ההתקנה הסתיימה בהצלחה! קישורי משימה יעודכנו כל יום בשעה $time" -Title "Wallpaper Installer - Success")
 }
 catch {
-    Write-Log -Message "INSTALLATION FAILED: $($_.Exception.Message)" -Level "Error" -LogFile $LogFile
+    $errorMsg = $_.Exception.Message
+    Write-Log -Message "INSTALLATION FAILED: $errorMsg" -Level "Error" -LogFile $LogFile
     Write-Log -Message "StackTrace: $($_.Exception.StackTrace)" -Level "Error" -LogFile $LogFile
+    [void] (Show-MessageBox -Message "✗ ההתקנה נכשלה!\n\n$errorMsg" -Title "Wallpaper Installer - Error")
     exit 1
 }
-
-exit 0
