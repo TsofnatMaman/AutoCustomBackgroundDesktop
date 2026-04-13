@@ -1,6 +1,7 @@
 $ErrorActionPreference = "Stop"
 
 Import-Module "$PSScriptRoot\modules\Logging.psm1"
+Import-Module "$PSScriptRoot\modules\Config.psm1"
 
 $AppDir = Join-Path $env:APPDATA ".WallpaperProject"
 $TaskName = "ChangeWallpaperEveryDay"
@@ -10,92 +11,95 @@ $LogFile = Join-Path $LogFolder "install.log"
 
 Initialize-Logging -AppDir $AppDir -LogFolder $LogFolder
 
-Write-Log "===== Installation started =====" "Info" $LogFile
+Write-Log -Message "===== Installation started =====" -Level "Info" -LogFile $LogFile
 
 try {
-    Write-Log "Loading configuration variables..." "Info" $LogFile
+    Write-Log -Message "Loading configuration from config.json..." -Level "Info" -LogFile $LogFile
+    $cfg = Load-Configuration -Root $PSScriptRoot -LogFile $LogFile
+    
+    Write-Log -Message "Loading configuration variables..." -Level "Info" -LogFile $LogFile
 
     $u = $cfg.github.username
     $r = $cfg.github.repository
     $b = $cfg.github.branch
 
-    Write-Log "Git config loaded: user=$u repo=$r branch=$b" "Info" $LogFile
+    Write-Log -Message "Git config loaded: user=$u repo=$r branch=$b" -Level "Info" -LogFile $LogFile
 
     $RepoZip = "https://github.com/$u/$r/archive/refs/heads/$b.zip"
     $TempZip = Join-Path $env:TEMP "wallpaper.zip"
 
-    Write-Log "Target repo ZIP URL: $RepoZip" "Info" $LogFile
-    Write-Log "Temp ZIP path: $TempZip" "Info" $LogFile
+    Write-Log -Message "Target repo ZIP URL: $RepoZip" -Level "Info" -LogFile $LogFile
+    Write-Log -Message "Temp ZIP path: $TempZip" -Level "Info" -LogFile $LogFile
 
-    Write-Log "Cleaning old installation directory: $AppDir" "Info" $LogFile
+    Write-Log -Message "Cleaning old installation directory: $AppDir" -Level "Info" -LogFile $LogFile
 
     if (Test-Path $AppDir) {
         Remove-Item $AppDir -Recurse -Force
-        Write-Log "Old directory removed successfully" "Success" $LogFile
+        Write-Log -Message "Old directory removed successfully" -Level "Info" -LogFile $LogFile
     } else {
-        Write-Log "No previous installation found" "Info" $LogFile
+        Write-Log -Message "No previous installation found" -Level "Info" -LogFile $LogFile
     }
 
-    Write-Log "Creating application directory..." "Info" $LogFile
+    Write-Log -Message "Creating application directory..." -Level "Info" -LogFile $LogFile
     New-Item -ItemType Directory -Path $AppDir -Force | Out-Null
-    Write-Log "App directory ready: $AppDir" "Success" $LogFile
+    Write-Log -Message "App directory ready: $AppDir" -Level "Info" -LogFile $LogFile
 
-    Write-Log "Starting download from GitHub..." "Info" $LogFile
+    Write-Log -Message "Starting download from GitHub..." -Level "Info" -LogFile $LogFile
     Invoke-WebRequest -Uri $RepoZip -OutFile $TempZip
-    Write-Log "Download completed successfully" "Success" $LogFile
+    Write-Log -Message "Download completed successfully" -Level "Info" -LogFile $LogFile
 
-    Write-Log "Starting extraction process..." "Info" $LogFile
+    Write-Log -Message "Starting extraction process..." -Level "Info" -LogFile $LogFile
     Add-Type -AssemblyName System.IO.Compression.FileSystem
 
     [System.IO.Compression.ZipFile]::ExtractToDirectory($TempZip, $AppDir)
-    Write-Log "Extraction completed" "Success" $LogFile
+    Write-Log -Message "Extraction completed" -Level "Info" -LogFile $LogFile
 
-    Write-Log "Removing temporary ZIP file..." "Info" $LogFile
+    Write-Log -Message "Removing temporary ZIP file..." -Level "Info" -LogFile $LogFile
     Remove-Item $TempZip -Force -ErrorAction SilentlyContinue
-    Write-Log "Temporary file cleaned" "Success" $LogFile
+    Write-Log -Message "Temporary file cleaned" -Level "Info" -LogFile $LogFile
 
-    Write-Log "Searching extracted project folder..." "Info" $LogFile
+    Write-Log -Message "Searching extracted project folder..." -Level "Info" -LogFile $LogFile
 
     $projectFolder = Get-ChildItem $AppDir | Where-Object { $_.PSIsContainer } | Select-Object -First 1
 
     if (-not $projectFolder) {
-        Write-Log "Extraction failed: no folder found" "Error" $LogFile
+        Write-Log -Message "Extraction failed: no folder found" -Level "Error" -LogFile $LogFile
         throw "Extraction failed"
     }
 
-    Write-Log "Project folder detected: $($projectFolder.FullName)" "Success" $LogFile
+    Write-Log -Message "Project folder detected: $($projectFolder.FullName)" -Level "Info" -LogFile $LogFile
 
     $main = Join-Path $projectFolder.FullName "main.ps1"
 
-    Write-Log "Checking main script: $main" "Info" $LogFile
+    Write-Log -Message "Checking main script: $main" -Level "Info" -LogFile $LogFile
 
     if (-not (Test-Path $main)) {
-        Write-Log "main.ps1 not found in extracted project" "Error" $LogFile
+        Write-Log -Message "main.ps1 not found in extracted project" -Level "Error" -LogFile $LogFile
         throw "main.ps1 not found. Check repo structure."
     }
 
-    Write-Log "main.ps1 verified successfully" "Success" $LogFile
+    Write-Log -Message "main.ps1 verified successfully" -Level "Info" -LogFile $LogFile
 
-    Write-Log "Creating scheduled task..." "Info" $LogFile
+    Write-Log -Message "Creating scheduled task..." -Level "Info" -LogFile $LogFile
 
     $action = New-ScheduledTaskAction `
         -Execute "powershell.exe" `
         -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$main`""
 
-    Write-Log "Scheduled task action created" "Info" $LogFile
+    Write-Log -Message "Scheduled task action created" -Level "Info" -LogFile $LogFile
 
     $principal = New-ScheduledTaskPrincipal `
         -UserId $env:USERNAME `
         -LogonType Interactive
 
-    Write-Log "Scheduled task principal set for user $env:USERNAME" "Info" $LogFile
+    Write-Log -Message "Scheduled task principal set for user $env:USERNAME" -Level "Info" -LogFile $LogFile
 
     $time = $cfg.wallpaper.time
-    Write-Log "Task trigger time: $time" "Info" $LogFile
+    Write-Log -Message "Task trigger time: $time" -Level "Info" -LogFile $LogFile
 
     $trigger = New-ScheduledTaskTrigger -Daily -At $time
 
-    Write-Log "Registering scheduled task: $TaskName" "Info" $LogFile
+    Write-Log -Message "Registering scheduled task: $TaskName" -Level "Info" -LogFile $LogFile
 
     Register-ScheduledTask `
         -Action $action `
@@ -104,17 +108,17 @@ try {
         -Description "Updates wallpaper based on countdown" `
         -Force
 
-    Write-Log "Scheduled task registered successfully" "Success" $LogFile
+    Write-Log -Message "Scheduled task registered successfully" -Level "Info" -LogFile $LogFile
 
-    Write-Log "Starting main script manually..." "Info" $LogFile
+    Write-Log -Message "Starting main script manually..." -Level "Info" -LogFile $LogFile
     Start-Process powershell.exe "-File `"$main`""
 
-    Write-Log "Main script launched" "Success" $LogFile
+    Write-Log -Message "Main script launched" -Level "Info" -LogFile $LogFile
 
-    Write-Log "===== Installation completed successfully =====" "Success" $LogFile
+    Write-Log -Message "===== Installation completed successfully =====" -Level "Info" -LogFile $LogFile
 }
 catch {
-    Write-Log "INSTALLATION FAILED: $($_.Exception.Message)" "Error" $LogFile
-    Write-Log "StackTrace: $($_.Exception.StackTrace)" "Error" $LogFile
+    Write-Log -Message "INSTALLATION FAILED: $($_.Exception.Message)" -Level "Error" -LogFile $LogFile
+    Write-Log -Message "StackTrace: $($_.Exception.StackTrace)" -Level "Error" -LogFile $LogFile
     throw
 }

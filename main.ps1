@@ -21,9 +21,9 @@ Import-Module "$PSScriptRoot\modules\Image.psm1" -Force
 Import-Module "$PSScriptRoot\modules\System.psm1" -Force
 Import-Module "$PSScriptRoot\modules\Cleanup.psm1" -Force
 
-$cfg = Load-Configuration -Root $PSScriptRoot
+$cfg = Load-Configuration -Root $PSScriptRoot -LogFile ""
 
-Ensure-Admin
+Ensure-Admin -LogFile ""
 
 $app = Initialize-App $cfg
 $LogFile = Get-LogFile $app.LogFolder
@@ -32,15 +32,15 @@ Initialize-Logging -AppDir $app.AppDir -LogFolder $app.LogFolder
 Write-Log -Message "=== Script Started ===" -LogFile $LogFile
 
 $mutexName = if ($cfg.system.mutexName) { $cfg.system.mutexName } else { "WallpaperLock" }
-$mutex = Acquire-Mutex $mutexName
+$mutex = Acquire-Mutex $mutexName -LogFile $LogFile
 if (-not $mutex) { exit }
 
 try {
-    $daysRemaining = Get-DaysRemaining (Get-Date $cfg.wallpaper.targetDate)
+    $daysRemaining = Get-DaysRemaining (Get-Date $cfg.wallpaper.targetDate) -LogFile $LogFile
 
     if ($daysRemaining -lt 0) {
         Write-Log -Message "Target date passed." -LogFile $LogFile
-        Uninstall-Project -Config $cfg -AppDir $app.AppDir
+        Uninstall-Project -HiddenFolder $app.AppDir -LogFile $LogFile
         return
     }
 

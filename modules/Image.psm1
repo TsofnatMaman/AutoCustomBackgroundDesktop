@@ -97,12 +97,13 @@ function Export-CountdownImage {
 
         Write-Log -Message "Preparing font and brush" -Level "Debug" -LogFile $LogFile
         $font  = New-Object System.Drawing.Font("Arial", 40, [System.Drawing.FontStyle]::Bold)
-        $brush = [System.Drawing.Brushes]::White
+        $brush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White)
 
         $rect = New-Object System.Drawing.RectangleF(0,0,$img.Width,$img.Height)
+        $stringFormat = [System.Drawing.StringFormat]::GenericDefault
         Write-Log -Message "Drawing text onto image" -Level "Info" -LogFile $LogFile
 
-        $g.DrawString($Text, $font, $brush, $rect)
+        $g.DrawString($Text, $font, $brush, $rect, $stringFormat)
 
         Write-Log -Message "Saving output image -> $Output" -Level "Info" -LogFile $LogFile
         $bmp.Save($Output, [System.Drawing.Imaging.ImageFormat]::Jpeg)
@@ -120,6 +121,8 @@ function Export-CountdownImage {
     finally {
         Write-Log -Message "Cleaning up resources" -Level "Debug" -LogFile $LogFile
 
+        if ($brush) { $brush.Dispose(); Write-Log -Message "Brush disposed" -Level "Debug" -LogFile $LogFile }
+        if ($font) { $font.Dispose(); Write-Log -Message "Font disposed" -Level "Debug" -LogFile $LogFile }
         if ($g) { $g.Dispose(); Write-Log -Message "Graphics disposed" -Level "Debug" -LogFile $LogFile }
         if ($bmp) { $bmp.Dispose(); Write-Log -Message "Bitmap disposed" -Level "Debug" -LogFile $LogFile }
         if ($img) { $img.Dispose(); Write-Log -Message "Image disposed" -Level "Debug" -LogFile $LogFile }
@@ -147,7 +150,7 @@ function Update-WallpaperFlow {
         $msgText = $cfg.wallpaper.text.Replace("{days}", $daysRemaining)
 
         Export-CountdownImage -Base $baseImgPath -Output $finalImgPath -Text $msgText -LogFile $LogFile
-        Set-Wallpaper -Path $finalImgPath
+        Set-Wallpaper -Path $finalImgPath -LogFile $LogFile
 
         Write-Log -Message "Wallpaper updated successfully." -LogFile $LogFile
     }

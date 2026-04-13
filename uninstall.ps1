@@ -7,10 +7,12 @@ $script:HiddenFolder = Join-Path $env:APPDATA ".wallpaper_cache"
 $script:LogFolder = Join-Path $script:HiddenFolder "logs"
 $script:LogFile = Join-Path $script:LogFolder "wallpaper_$(Get-Date -Format 'yyyy-MM-dd').log"
 
-Initialize-Logging
+Initialize-Logging -AppDir $script:HiddenFolder -LogFolder $script:LogFolder
+Write-Log -Message "=== Uninstall started ===" -Level "Info" -LogFile $script:LogFile
 Write-Host "Uninstalling..."
 
-Remove-ScheduledTaskSafe
-Remove-HiddenFolderSafe -HiddenFolder $script:HiddenFolder
+Remove-ScheduledTaskSafe -LogFile $script:LogFile
+Remove-HiddenFolderSafe -HiddenFolder $script:HiddenFolder -LogFile $script:LogFile
 
+Write-Log -Message "=== Uninstall completed ===" -Level "Info" -LogFile $script:LogFile
 Write-Host "Uninstall complete."
