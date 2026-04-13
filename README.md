@@ -107,6 +107,8 @@ Invoke-ps2exe .\install.ps1 .\install.exe `
    -description "Installs wallpaper automation"
 ```
 
+**Note**: install.ps1 is now standalone (contains embedded functions, no external module dependencies), so the compiled EXE will work independently without needing to bundle modules.
+
 ## for run the tests:
 install Pester -RequiredVersion 5.0.0
 ```PS

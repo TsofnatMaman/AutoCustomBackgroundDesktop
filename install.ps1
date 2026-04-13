@@ -1,7 +1,59 @@
 $ErrorActionPreference = "Stop"
 
-Import-Module "$PSScriptRoot\modules\Logging.psm1"
-Import-Module "$PSScriptRoot\modules\Config.psm1"
+# --- Minimal inline functions (no external module dependencies) ---
+
+function Write-Log {
+    param(
+        [string]$Message,
+        [string]$Level = "Info",
+        [string]$LogFile
+    )
+    if ([string]::IsNullOrWhiteSpace($LogFile)) { return }
+    try {
+        $dir = Split-Path $LogFile -Parent
+        if ($dir -and -not (Test-Path $dir)) {
+            New-Item -ItemType Directory -Path $dir -Force | Out-Null
+        }
+        $line = "[{0}] [{1}] {2}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $Level, $Message
+        Add-Content -Path $LogFile -Value $line -Encoding UTF8
+    } catch { }
+}
+
+function Load-Configuration {
+    param([string]$LogFile)
+    
+    # GitHub URL for config.json
+    $configUrl = "https://raw.githubusercontent.com/TsofnatMaman/AutoCustomBackgroundDesktop/refactor/config.json"
+    $tempConfigPath = Join-Path $env:TEMP "wallpaper_config.json"
+    
+    Write-Log -Message "Downloading configuration from: $configUrl" -Level "Info" -LogFile $LogFile
+    
+    try {
+        Invoke-WebRequest -Uri $configUrl -OutFile $tempConfigPath -ErrorAction Stop
+        Write-Log -Message "Configuration downloaded successfully" -Level "Info" -LogFile $LogFile
+        
+        $config = Get-Content $tempConfigPath -Raw | ConvertFrom-Json
+        Write-Log -Message "Configuration parsed successfully" -Level "Info" -LogFile $LogFile
+        
+        return $config
+    } catch {
+        Write-Log -Message "Failed to download/parse configuration: $($_.Exception.Message)" -Level "Error" -LogFile $LogFile
+        throw $_
+    }
+}
+
+function Initialize-Logging {
+    param(
+        [string]$AppDir,
+        [string]$LogFolder
+    )
+    if (-not [string]::IsNullOrWhiteSpace($AppDir) -and -not (Test-Path $AppDir)) {
+        New-Item -ItemType Directory -Path $AppDir -Force | Out-Null
+    }
+    if (-not [string]::IsNullOrWhiteSpace($LogFolder) -and -not (Test-Path $LogFolder)) {
+        New-Item -ItemType Directory -Path $LogFolder -Force | Out-Null
+    }
+}
 
 $AppDir = Join-Path $env:APPDATA ".WallpaperProject"
 $TaskName = "ChangeWallpaperEveryDay"
@@ -14,8 +66,8 @@ Initialize-Logging -AppDir $AppDir -LogFolder $LogFolder
 Write-Log -Message "===== Installation started =====" -Level "Info" -LogFile $LogFile
 
 try {
-    Write-Log -Message "Loading configuration from config.json..." -Level "Info" -LogFile $LogFile
-    $cfg = Load-Configuration -Root $PSScriptRoot -LogFile $LogFile
+    Write-Log -Message "Loading configuration from GitHub..." -Level "Info" -LogFile $LogFile
+    $cfg = Load-Configuration -LogFile $LogFile
     
     Write-Log -Message "Loading configuration variables..." -Level "Info" -LogFile $LogFile
 
