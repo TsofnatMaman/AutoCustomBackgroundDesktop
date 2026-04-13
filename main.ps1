@@ -38,10 +38,9 @@ try {
     $branch   = $cfg.github.branch.ToString().Trim()
     $path     = $cfg.github.imagePath.ToString().Trim()
 
-    $remoteImageUrl = [Uri]::EscapeUriString(
-        "https://raw.githubusercontent.com/$username/$repo/$branch/$path"
-    )
-
+    $remoteImageUrl = "https://raw.githubusercontent.com/$username/$repo/$branch/$path"
+    $remoteImageUrl = $remoteImageUrl.Trim()
+    
     Write-Log -Message "IMAGE URL = [$remoteImageUrl]" -LogFile $LogFile
 
     $baseImg = Join-Path $AppDir "base.jpg"
