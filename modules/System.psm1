@@ -1,5 +1,7 @@
 function Ensure-Admin {
-    if (-not ([Security.Principal.WindowsPrincipal] 
+    param($Config)
+
+    if (-not ([Security.Principal.WindowsPrincipal]
         [Security.Principal.WindowsIdentity]::GetCurrent()
     ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
 

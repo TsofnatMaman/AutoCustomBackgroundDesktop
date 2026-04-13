@@ -1,20 +1,25 @@
 function Initialize-Logging {
-    if (-not (Test-Path $script:HiddenFolder)) {
-        New-Item -ItemType Directory -Path $script:HiddenFolder -Force | Out-Null
-        (Get-Item $script:HiddenFolder -Force).Attributes = "Hidden"
+    param($AppDir, $LogFolder)
+
+    if (-not (Test-Path $AppDir)) {
+        New-Item -ItemType Directory -Path $AppDir -Force | Out-Null
     }
-    if (-not (Test-Path $script:LogFolder)) {
-        New-Item -ItemType Directory -Path $script:LogFolder -Force | Out-Null
+
+    if (-not (Test-Path $LogFolder)) {
+        New-Item -ItemType Directory -Path $LogFolder -Force | Out-Null
     }
 }
 
 function Write-Log {
-    param([string]$Message, [string]$Level = "Info")
+    param(
+        [string]$Message,
+        [string]$Level = "Info",
+        [string]$LogFile
+    )
 
-    $logMessage = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] [$Level] $Message"
-    Write-Host $logMessage
-
-    Add-Content -Path $script:LogFile -Value $logMessage -Encoding UTF8 -ErrorAction SilentlyContinue
+    $line = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] [$Level] $Message"
+    Write-Host $line
+    Add-Content -Path $LogFile -Value $line -Encoding UTF8
 }
 
 Export-ModuleMember -Function Initialize-Logging, Write-Log

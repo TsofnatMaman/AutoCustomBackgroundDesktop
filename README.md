@@ -94,3 +94,15 @@ It also installs a **scheduled task** so that the wallpaper is updated **silentl
 - Windows 10 / 11  
 - PowerShell 5+ (or PowerShell 7 with Windows compatibility)  
 - .NET Framework (for `System.Drawing`)
+
+## for build exe in PS:
+install ps2exe module
+
+``` PS
+Invoke-ps2exe .\install.ps1 .\install.exe `
+>>   -noConsole `
+>>   -requireAdmin `
+>>   -iconFile .\icon.ico `
+>>   -title "Wallpaper Installer" `
+>>   -description "Installs wallpaper automation"
+```
