@@ -3,7 +3,11 @@ $ErrorActionPreference = "Stop"
 $AppDir = Join-Path $env:APPDATA ".WallpaperProject"
 $TaskName = "ChangeWallpaperEveryDay"
 
-$RepoZip = "https://github.com/TsofnatMaman/AutoCustomBackgroundDesktop/archive/refs/heads/refactor.zip"
+$u = $cfg.github.username
+$r = $cfg.github.repository
+$b = $cfg.github.branch
+
+$RepoZip = "https://github.com/$u/$r/archive/refs/heads/$b.zip"
 $TempZip = Join-Path $env:TEMP "wallpaper.zip"
 
 Write-Host "Downloading latest version from Git..."

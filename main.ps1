@@ -8,28 +8,38 @@ Import-Module "$PSScriptRoot\modules\Image.psm1"
 Import-Module "$PSScriptRoot\modules\System.psm1"
 Import-Module "$PSScriptRoot\modules\Cleanup.psm1"
 
-# טעינת קונפיגורציה
+# 1. טעינת קונפיגורציה
 $cfg = Load-Configuration -Root $PSScriptRoot
 
-# הגדרת נתיבים
-$AppDir = Join-Path $env:APPDATA $cfg.app.appFolder
+# 2. הגדרת נתיבים (וידוא ששום דבר לא ריק לפני שבכלל מתחילים)
+$fName = if ($cfg.app.appFolder) { $cfg.app.appFolder } else { ".wallpaper_cache" }
+$AppDir = Join-Path $env:APPDATA $fName
+
+# יצירת תיקיית האפליקציה מיד
+if (-not (Test-Path $AppDir)) { New-Item -ItemType Directory -Path $AppDir -Force | Out-Null }
+
 $LogFolder = Join-Path $AppDir "logs"
+if (-not (Test-Path $LogFolder)) { New-Item -ItemType Directory -Path $LogFolder -Force | Out-Null }
+
 $CurrentDate = Get-Date -Format "yyyy-MM-dd"
-$LogFile = Join-Path $LogFolder ($cfg.app.logFilePattern -replace "{date}", $CurrentDate)
+$LogFile = Join-Path $LogFolder "wallpaper_$CurrentDate.log"
 
-# --- שלב קריטי: יצירת תיקיית הלוגים אם היא לא קיימת ---
-if (-not (Test-Path $LogFolder)) {
-    New-Item -ItemType Directory -Path $LogFolder -Force | Out-Null
-}
-
+# 3. אתחול מערכת
 Ensure-Admin -Config $cfg
 Initialize-Logging -AppDir $AppDir -LogFolder $LogFolder
 
 Write-Log -Message "=== Script Started ===" -LogFile $LogFile
 
 try {
+    # הגדרת קבצי התמונה - כאן אנחנו מוודאים שהם לא ריקים
+    $baseImg = [string](Join-Path $AppDir "base.jpg")
+    $finalImg = [string](Join-Path $AppDir "wallpaper.jpg")
+
+    if ([string]::IsNullOrWhiteSpace($baseImg)) { throw "Base image path is empty!" }
+
     # מניעת הרצה כפולה
-    $mutex = New-Object System.Threading.Mutex($false, $cfg.system.mutexName)
+    $mName = if ($cfg.system.mutexName) { $cfg.system.mutexName } else { "WallpaperLock" }
+    $mutex = New-Object System.Threading.Mutex($false, $mName)
     if (-not $mutex.WaitOne(0)) { 
         Write-Log -Message "Another instance is running. Exiting." -LogFile $LogFile
         exit 
@@ -42,12 +52,12 @@ try {
     $daysRemaining = ($targetDate - (Get-Date)).Days
 
     if ($daysRemaining -lt 0) {
-        Write-Log -Message "Target date passed. Uninstalling." -LogFile $LogFile
+        Write-Log -Message "Target date passed." -LogFile $LogFile
         Uninstall-Project -Config $cfg -AppDir $AppDir
         return
     }
 
-    # בניית URL בטוחה (ללא רווחים ותווים נסתרים)
+    # בניית URL
     $u = "$($cfg.github.username)".Trim()
     $r = "$($cfg.github.repository)".Trim()
     $b = "$($cfg.github.branch)".Trim()
@@ -58,17 +68,17 @@ try {
 
     Write-Log -Message "Attempting download from: <$remoteImageUrl>" -LogFile $LogFile
 
-    $baseImg = Join-Path $AppDir "base.jpg"
-    $finalImg = Join-Path $AppDir "wallpaper.jpg"
-
-    # הורדה ועדכון
-    if (Get-BaseImage -Url $remoteImageUrl -Path $baseImg -LogFile $LogFile) {
+    # --- הקריאה לפונקציה הבעייתית ---
+    # הוספנו כאן כפייה של המשתנים כטקסט (casting)
+    if (Get-BaseImage -Url ([string]$remoteImageUrl) -Path ([string]$baseImg) -LogFile ([string]$LogFile)) {
+        
         $text = $cfg.wallpaper.text.Replace("{days}", $daysRemaining)
+        
         Export-CountdownImage -Base $baseImg -Output $finalImg -Text $text -LogFile $LogFile
+        
         Set-Wallpaper -Path $finalImg
+        
         Write-Log -Message "Success! Wallpaper updated." -LogFile $LogFile
-    } else {
-        Write-Log -Message "Failed to download image." -Level "Error" -LogFile $LogFile
     }
 }
 catch {

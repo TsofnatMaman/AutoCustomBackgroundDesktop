@@ -5,22 +5,18 @@
     "appFolder": ".wallpaper_cache",
     "logFilePattern": "wallpaper_{date}.log"
   },
-
   "github": {
     "username": "TsofnatMaman",
     "repository": "AutoCustomBackgroundDesktop",
     "branch": "refactor",
-    "zipUrl": "https://github.com/TsofnatMaman/AutoCustomBackgroundDesktop/archive/refs/heads/refactor.zip",
     "imagePath": "backgrounds/2.jpg"
   },
-
   "wallpaper": {
     "targetDate": "2126-04-20",
     "text": "...עוד {days} ימים",
     "updateHour": 9,
     "updateMinute": 0
   },
-
   "system": {
     "tempZipName": "wallpaper.zip",
     "mutexName": "WallpaperScriptLock"
