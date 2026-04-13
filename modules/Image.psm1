@@ -34,8 +34,17 @@ function Get-BaseImage {
             Write-Log -Message "Directory already exists" -Level "Debug" -LogFile $LogFile
         }
 
+        $separator = if ($Url.Contains("?")) { "&" } else { "?" }
+        $cacheStamp = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+        $downloadUrl = "$Url$separator" + "cb=$cacheStamp"
+        $headers = @{
+            "Cache-Control" = "no-cache, no-store, must-revalidate"
+            "Pragma" = "no-cache"
+            "Expires" = "0"
+        }
+
         Write-Log -Message "Starting download from $Url" -Level "Info" -LogFile $LogFile
-        Invoke-WebRequest -Uri $Url -OutFile $Path -ErrorAction Stop
+        Invoke-WebRequest -Uri $downloadUrl -Headers $headers -OutFile $Path -ErrorAction Stop
         Write-Log -Message "Download completed successfully -> $Path" -Level "Info" -LogFile $LogFile
 
         Write-Log -Message "=== Get-BaseImage SUCCESS ===" -Level "Info" -LogFile $LogFile

@@ -39,6 +39,14 @@ function Get-RemoteConfigUrl {
     return "https://raw.githubusercontent.com/$username/$repository/$branch/$configPath"
 }
 
+function Add-CacheBusterToUrl {
+    param([string]$Url)
+
+    $separator = if ($Url.Contains("?")) { "&" } else { "?" }
+    $stamp = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+    return "$Url$separator" + "cb=$stamp"
+}
+
 function Update-ConfigurationFromRemote {
     param(
         [string]$Root,
@@ -50,9 +58,16 @@ function Update-ConfigurationFromRemote {
 
     try {
         $url = Get-RemoteConfigUrl -cfg $cfg
+        $downloadUrl = Add-CacheBusterToUrl -Url $url
+        $headers = @{
+            "Cache-Control" = "no-cache, no-store, must-revalidate"
+            "Pragma" = "no-cache"
+            "Expires" = "0"
+        }
+
         Write-Log -Message "Downloading latest configuration from: $url" -Level "Info" -LogFile $LogFile
 
-        Invoke-WebRequest -Uri $url -OutFile $path -ErrorAction Stop
+        Invoke-WebRequest -Uri $downloadUrl -Headers $headers -OutFile $path -ErrorAction Stop
 
         Write-Log -Message "Configuration refreshed successfully at: $path" -Level "Info" -LogFile $LogFile
         return $true
