@@ -146,22 +146,34 @@ try {
 
     Write-Log -Message "Scheduled task action created" -Level "Info" -LogFile $LogFile
 
-    $principal = New-ScheduledTaskPrincipal `
-        -UserId $env:USERNAME `
-        -LogonType Interactive
-
-    Write-Log -Message "Scheduled task principal set for user $env:USERNAME" -Level "Info" -LogFile $LogFile
-
     $time = $cfg.wallpaper.time
     Write-Log -Message "Task trigger time: $time" -Level "Info" -LogFile $LogFile
 
-    $trigger = New-ScheduledTaskTrigger -Daily -At $time
+    $dailyTrigger = New-ScheduledTaskTrigger -Daily -At $time
+    $logonTrigger = New-ScheduledTaskTrigger -AtLogOn
+
+    $settings = New-ScheduledTaskSettingsSet `
+        -StartWhenAvailable `
+        -AllowStartIfOnBatteries `
+        -DontStopIfGoingOnBatteries `
+        -MultipleInstances IgnoreNew `
+        -Compatibility Win8 `
+        -Hidden
+
+    $principal = New-ScheduledTaskPrincipal `
+        -UserId $env:USERNAME `
+        -LogonType Interactive `
+        -RunLevel Highest
+
+    Write-Log -Message "Scheduled task principal set for user $env:USERNAME (RunLevel=Highest)" -Level "Info" -LogFile $LogFile
 
     Write-Log -Message "Registering scheduled task: $TaskName" -Level "Info" -LogFile $LogFile
 
     Register-ScheduledTask `
         -Action $action `
-        -Trigger $trigger `
+        -Trigger @($dailyTrigger, $logonTrigger) `
+        -Settings $settings `
+        -Principal $principal `
         -TaskName $cfg.app.taskName `
         -Description "Updates wallpaper based on countdown" `
         -Force | Out-Null
