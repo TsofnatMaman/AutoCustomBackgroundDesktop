@@ -33,15 +33,21 @@ try {
         Uninstall-Project -Config $cfg -AppDir $AppDir
     }
 
-    $username = $cfg.github.username.ToString().Trim()
-    $repo     = $cfg.github.repository.ToString().Trim()
-    $branch   = $cfg.github.branch.ToString().Trim()
-    $path     = $cfg.github.imagePath.ToString().Trim()
+    # שלב בניית הכתובת עם ניקוי תווים
+    $username = "$($cfg.github.username)".Trim()
+    $repo     = "$($cfg.github.repository)".Trim()
+    $branch   = "$($cfg.github.branch)".Trim()
+    $path     = "$($cfg.github.imagePath)".Trim()
 
-    $remoteImageUrl = "https://raw.githubusercontent.com/$username/$repo/$branch/$path"
-    $remoteImageUrl = $remoteImageUrl.Trim()
+    # בניית ה-URL
+    $rawUrl = "https://raw.githubusercontent.com/$username/$repo/$branch/$path"
     
-    Write-Log -Message "IMAGE URL = [$remoteImageUrl]" -LogFile $LogFile
+    # הסרת תווים בלתי נראים (כמו BOM או תווים שאינם ASCII)
+    $cleanUrl = $rawUrl -replace '[^\x20-\x7E]', ''
+    $remoteImageUrl = $cleanUrl.Trim()
+    
+    # לוג עם גרשיים כדי לזהות רווחים/תווים מיותרים
+    Write-Log -Message "DEBUG: Final URL attempt is: '$remoteImageUrl'" -LogFile $LogFile
 
     $baseImg = Join-Path $AppDir "base.jpg"
     $finalImg = Join-Path $AppDir "wallpaper.jpg"
@@ -60,5 +66,7 @@ try {
     Write-Log -Message "Finished." -LogFile $LogFile
 }
 catch {
-    Write-Log -Message $_.Exception.Message -Level "Error" -LogFile $LogFile
+    # לוג שגיאה מפורט כולל הכתובת הבעייתית בתוך גרשיים
+    Write-Log -Message "ERROR: $($_.Exception.Message)" -Level "Error" -LogFile $LogFile
+    Write-Log -Message "FAILED URL: '$remoteImageUrl'" -Level "Error" -LogFile $LogFile
 }
