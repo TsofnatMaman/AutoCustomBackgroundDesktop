@@ -9,12 +9,12 @@
         "username": "TsofnatMaman",
         "repository": "AutoCustomBackgroundDesktop",
         "branch": "refactor",
-        "imagePath": "backgrounds/2.jpg"
+        "imagePath": "backgrounds/1.jpg"
     },
     "wallpaper": {
         "targetDate": "2126-04-20",
         "text": "...עוד {days} ימים",
-        "time": "09:00"
+        "time": "00:30"
 
     },
     "system": {
