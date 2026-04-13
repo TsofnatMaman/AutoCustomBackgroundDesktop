@@ -97,7 +97,7 @@ try {
     Write-Log -Message "App directory ready: $AppDir" -Level "Info" -LogFile $LogFile
 
     Write-Log -Message "Starting download from GitHub..." -Level "Info" -LogFile $LogFile
-    Invoke-WebRequest -Uri $RepoZip -OutFile $TempZip
+    Invoke-WebRequest -Uri $RepoZip -OutFile $TempZip | Out-Null
     Write-Log -Message "Download completed successfully" -Level "Info" -LogFile $LogFile
 
     Write-Log -Message "Starting extraction process..." -Level "Info" -LogFile $LogFile
@@ -158,7 +158,7 @@ try {
         -Trigger $trigger `
         -TaskName $cfg.app.taskName `
         -Description "Updates wallpaper based on countdown" `
-        -Force
+        -Force | Out-Null
 
     Write-Log -Message "Scheduled task registered successfully" -Level "Info" -LogFile $LogFile
 
@@ -172,5 +172,7 @@ try {
 catch {
     Write-Log -Message "INSTALLATION FAILED: $($_.Exception.Message)" -Level "Error" -LogFile $LogFile
     Write-Log -Message "StackTrace: $($_.Exception.StackTrace)" -Level "Error" -LogFile $LogFile
-    throw
+    exit 1
 }
+
+exit 0
