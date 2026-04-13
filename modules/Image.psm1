@@ -1,27 +1,32 @@
+Import-Module "./modules/Logging.psm1"
+
 function Get-BaseImage {
     param(
-        [Parameter(Mandatory=$true)]
         [string]$Url,
-
-        [Parameter(Mandatory=$true)]
         [string]$Path,
-
-        [Parameter(Mandatory=$false)]
         [string]$LogFile
     )
 
-    try {
-        if ([string]::IsNullOrWhiteSpace($Url)) { throw "URL is empty" }
-        if ([string]::IsNullOrWhiteSpace($Path)) { throw "Path is empty" }
+    if ([string]::IsNullOrWhiteSpace($Url)) {
+        throw "URL is empty"
+    }
 
-        # הורדת התמונה
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        throw "Path is empty"
+    }
+
+    try {
+        $dir = Split-Path $Path -Parent
+        if ($dir -and -not (Test-Path $dir)) {
+            New-Item -ItemType Directory -Path $dir -Force | Out-Null
+        }
+
         Invoke-WebRequest -Uri $Url -OutFile $Path -ErrorAction Stop
         return $true
     }
     catch {
         if ($LogFile) {
-            $msg = "Download failed: $($_.Exception.Message)"
-            Write-Log -Message $msg -Level "Error" -LogFile $LogFile
+            Write-Log -Message "Download failed: $($_.Exception.Message)" -Level "Error" -LogFile $LogFile
         }
         return $false
     }
@@ -35,33 +40,49 @@ function Export-CountdownImage {
         [string]$LogFile
     )
 
+    $img = $null
+    $bmp = $null
+    $g   = $null
+
     try {
+        if ([string]::IsNullOrWhiteSpace($Base) -or -not (Test-Path $Base)) {
+            throw "Base image not found"
+        }
+
+        $outDir = Split-Path $Output -Parent
+        if ($outDir -and -not (Test-Path $outDir)) {
+            New-Item -ItemType Directory -Path $outDir -Force | Out-Null
+        }
+
         Add-Type -AssemblyName System.Drawing
+
         $img = [System.Drawing.Image]::FromFile($Base)
         $bmp = New-Object System.Drawing.Bitmap($img.Width, $img.Height)
-        $g = [System.Drawing.Graphics]::FromImage($bmp)
+        $g   = [System.Drawing.Graphics]::FromImage($bmp)
 
         $g.DrawImage($img, 0, 0, $img.Width, $img.Height)
 
-        $font = New-Object System.Drawing.Font("Arial", 40, [System.Drawing.FontStyle]::Bold)
+        $font  = New-Object System.Drawing.Font("Arial", 40, [System.Drawing.FontStyle]::Bold)
         $brush = [System.Drawing.Brushes]::White
-        $sf = New-Object System.Drawing.StringFormat
-        $sf.Alignment = [System.Drawing.StringAlignment]::Center
-        $sf.LineAlignment = [System.Drawing.StringAlignment]::Center
 
-        $rect = New-Object System.Drawing.RectangleF(0, 0, $img.Width, $img.Height)
-        
-        $shadowBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(150, 0, 0, 0))
-        $g.FillRectangle($shadowBrush, 0, ($img.Height/2 - 50), $img.Width, 100)
+        $rect = New-Object System.Drawing.RectangleF(0,0,$img.Width,$img.Height)
 
-        $g.DrawString($Text, $font, $brush, $rect, $sf)
+        $g.DrawString($Text, $font, $brush, $rect)
 
         $bmp.Save($Output, [System.Drawing.Imaging.ImageFormat]::Jpeg)
 
-        $g.Dispose(); $bmp.Dispose(); $img.Dispose()
+        return $true
     }
     catch {
-        Write-Log -Message "Rendering failed: $($_.Exception.Message)" -Level "Error" -LogFile $LogFile
+        if ($LogFile) {
+            Write-Log -Message "Rendering failed: $($_.Exception.Message)" -Level "Error" -LogFile $LogFile
+        }
+        return $false
+    }
+    finally {
+        if ($g) { $g.Dispose() }
+        if ($bmp) { $bmp.Dispose() }
+        if ($img) { $img.Dispose() }
     }
 }
 

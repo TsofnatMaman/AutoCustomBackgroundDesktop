@@ -106,3 +106,9 @@ Invoke-ps2exe .\install.ps1 .\install.exe `
 >>   -title "Wallpaper Installer" `
 >>   -description "Installs wallpaper automation"
 ```
+
+## for run the tests:
+install Pester -RequiredVersion 5.0.0
+```PS
+Invoke-Pester .\Tests
+```

@@ -1,6 +1,4 @@
 function Ensure-Admin {
-    param($Config)
-    
     $currentPrincipal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
     $isAdmin = $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 
@@ -11,19 +9,4 @@ function Ensure-Admin {
     }
 }
 
-function Set-Wallpaper {
-    param([string]$Path)
-    
-    $code = @"
-    using System;
-    using System.Runtime.InteropServices;
-    public class Wallpaper {
-        [DllImport("user32.dll", CharSet = CharSet.Auto)]
-        public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
-    }
-"@
-    Add-Type -TypeDefinition $code -ErrorAction SilentlyContinue
-    [Wallpaper]::SystemParametersInfo(0x0014, 0, $Path, 0x01 -bor 0x02)
-}
-
-Export-ModuleMember -Function Ensure-Admin, Set-Wallpaper
+Export-ModuleMember -Function Ensure-Admin
