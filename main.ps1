@@ -11,41 +11,31 @@ Import-Module "$PSScriptRoot\modules\Cleanup.psm1"
 # 1. טעינת קונפיגורציה
 $cfg = Load-Configuration -Root $PSScriptRoot
 
-# 2. הגדרת נתיבים (וידוא ששום דבר לא ריק לפני שבכלל מתחילים)
+# 2. הגדרת נתיבים
 $fName = if ($cfg.app.appFolder) { $cfg.app.appFolder } else { ".wallpaper_cache" }
 $AppDir = Join-Path $env:APPDATA $fName
-
-# יצירת תיקיית האפליקציה מיד
-if (-not (Test-Path $AppDir)) { New-Item -ItemType Directory -Path $AppDir -Force | Out-Null }
-
 $LogFolder = Join-Path $AppDir "logs"
+
 if (-not (Test-Path $LogFolder)) { New-Item -ItemType Directory -Path $LogFolder -Force | Out-Null }
 
 $CurrentDate = Get-Date -Format "yyyy-MM-dd"
-$LogFile = Join-Path $LogFolder "wallpaper_$CurrentDate.log"
+$LogFile = [string](Join-Path $LogFolder "wallpaper_$CurrentDate.log")
 
-# 3. אתחול מערכת
+# 3. אתחול
 Ensure-Admin -Config $cfg
 Initialize-Logging -AppDir $AppDir -LogFolder $LogFolder
 
 Write-Log -Message "=== Script Started ===" -LogFile $LogFile
 
 try {
-    # הגדרת קבצי התמונה - כאן אנחנו מוודאים שהם לא ריקים
-    $baseImg = [string](Join-Path $AppDir "base.jpg")
-    $finalImg = [string](Join-Path $AppDir "wallpaper.jpg")
-
-    if ([string]::IsNullOrWhiteSpace($baseImg)) { throw "Base image path is empty!" }
+    # וידוא נתיבי תמונות
+    $baseImgPath = [string](Join-Path $AppDir "base.jpg")
+    $finalImgPath = [string](Join-Path $AppDir "wallpaper.jpg")
 
     # מניעת הרצה כפולה
     $mName = if ($cfg.system.mutexName) { $cfg.system.mutexName } else { "WallpaperLock" }
     $mutex = New-Object System.Threading.Mutex($false, $mName)
-    if (-not $mutex.WaitOne(0)) { 
-        Write-Log -Message "Another instance is running. Exiting." -LogFile $LogFile
-        exit 
-    }
-
-    Add-Type -AssemblyName System.Drawing
+    if (-not $mutex.WaitOne(0)) { exit }
 
     # חישוב ימים
     $targetDate = Get-Date $cfg.wallpaper.targetDate
@@ -62,23 +52,18 @@ try {
     $r = "$($cfg.github.repository)".Trim()
     $b = "$($cfg.github.branch)".Trim()
     $p = "$($cfg.github.imagePath)".Trim()
-    
-    $rawUrl = "https://raw.githubusercontent.com/{0}/{1}/{2}/{3}" -f $u, $r, $b, $p
-    $remoteImageUrl = $rawUrl.Replace(" ", "").Trim()
+    $remoteImageUrl = [string]"https://raw.githubusercontent.com/$u/$r/$b/$p"
 
-    Write-Log -Message "Attempting download from: <$remoteImageUrl>" -LogFile $LogFile
+    Write-Log -Message "Fetching: $remoteImageUrl" -LogFile $LogFile
 
-    # --- הקריאה לפונקציה הבעייתית ---
-    # הוספנו כאן כפייה של המשתנים כטקסט (casting)
-    if (Get-BaseImage -Url ([string]$remoteImageUrl) -Path ([string]$baseImg) -LogFile ([string]$LogFile)) {
-        
-        $text = $cfg.wallpaper.text.Replace("{days}", $daysRemaining)
-        
-        Export-CountdownImage -Base $baseImg -Output $finalImg -Text $text -LogFile $LogFile
-        
-        Set-Wallpaper -Path $finalImg
-        
-        Write-Log -Message "Success! Wallpaper updated." -LogFile $LogFile
+    # --- קריאה לפונקציה עם המרה מפורשת לטקסט ---
+    $downloadSuccess = Get-BaseImage -Url $remoteImageUrl -Path $baseImgPath -LogFile $LogFile
+
+    if ($downloadSuccess) {
+        $msgText = $cfg.wallpaper.text.Replace("{days}", $daysRemaining)
+        Export-CountdownImage -Base $baseImgPath -Output $finalImgPath -Text $msgText -LogFile $LogFile
+        Set-Wallpaper -Path $finalImgPath
+        Write-Log -Message "Wallpaper updated successfully." -LogFile $LogFile
     }
 }
 catch {
