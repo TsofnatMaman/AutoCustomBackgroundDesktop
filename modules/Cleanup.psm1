@@ -1,11 +1,42 @@
-function Uninstall-Project {
-    param($Config, $AppDir)
+function Remove-ScheduledTaskSafe {
+    param(
+        [string]$TaskName = "ChangeWallpaperEveryDay"
+    )
 
-    Unregister-ScheduledTask -TaskName $Config.app.taskName -Confirm:$false -ErrorAction SilentlyContinue
-
-    if (Test-Path $AppDir) {
-        Remove-Item $AppDir -Recurse -Force
+    try {
+        Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
+        Write-Log "Scheduled task removed (if existed)."
+    }
+    catch {
+        Write-Log "Failed removing scheduled task: $($_.Exception.Message)" -Level Warning
     }
 }
 
-Export-ModuleMember -Function Uninstall-Project
+function Remove-HiddenFolderSafe {
+    param(
+        [string]$HiddenFolder
+    )
+
+    try {
+        if (Test-Path $HiddenFolder) {
+            Remove-Item $HiddenFolder -Recurse -Force -ErrorAction SilentlyContinue
+            Write-Log "Hidden folder removed."
+        }
+    }
+    catch {
+        Write-Log "Failed removing hidden folder: $($_.Exception.Message)" -Level Warning
+    }
+}
+
+function Uninstall-Project {
+    param([string]$HiddenFolder)
+
+    Write-Log "Auto-uninstall triggered."
+
+    Remove-ScheduledTaskSafe
+    Remove-HiddenFolderSafe -HiddenFolder $HiddenFolder
+
+    exit
+}
+
+Export-ModuleMember -Function Uninstall-Project, Remove-ScheduledTaskSafe, Remove-HiddenFolderSafe
