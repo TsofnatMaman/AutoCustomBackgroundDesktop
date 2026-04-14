@@ -52,7 +52,6 @@ function Remove-HiddenFolderSafe {
 
 function Uninstall-Project {
     param(
-        [string]$HiddenFolder = (Join-Path $env:APPDATA ".wallpaper_cache"),
         [string]$ProjectFolder = (Join-Path $env:APPDATA ".WallpaperProject"),
         [string]$LogFile = (Join-Path $env:TEMP "uninstall.log")
     )
@@ -62,7 +61,6 @@ function Uninstall-Project {
 
     Remove-ScheduledTaskSafe -LogFile $LogFile
 
-    Remove-HiddenFolderSafe -HiddenFolder $HiddenFolder -LogFile $LogFile
     Remove-HiddenFolderSafe -HiddenFolder $ProjectFolder -LogFile $LogFile
 
     Write-Log -Message "=== Uninstall completed ===" -Level "Warning" -LogFile $LogFile

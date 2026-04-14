@@ -1,58 +1,5 @@
-param(
-    [switch]$SkipRemoteConfig,
-    [switch]$NoHideWindow
-)
-
-function Hide-ScriptWindow {
-    param([switch]$NoHideWindow)
-
-    if ($NoHideWindow) { return }
-
-    try {
-        if (-not ("ConsoleWin32" -as [type])) {
-            $code = @"
-using System;
-using System.Runtime.InteropServices;
-public static class ConsoleWin32 {
-    [DllImport("kernel32.dll")]
-    public static extern IntPtr GetConsoleWindow();
-
-    [DllImport("user32.dll")]
-    public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-}
-"@
-            Add-Type -TypeDefinition $code -ErrorAction SilentlyContinue
-        }
-
-        $handle = [ConsoleWin32]::GetConsoleWindow()
-        if ($handle -ne [IntPtr]::Zero) {
-            # SW_HIDE = 0
-            [void][ConsoleWin32]::ShowWindow($handle, 0)
-        }
-    }
-    catch {
-        # best effort only
-    }
-}
-
-Hide-ScriptWindow -NoHideWindow:$NoHideWindow
-
-function Initialize-App {
-    param($cfg)
-
-    $fName = if ($cfg.app.appFolder) { $cfg.app.appFolder } else { ".wallpaper_cache" }
-    $AppDir = Join-Path $env:APPDATA $fName
-    $LogFolder = Join-Path $AppDir "logs"
-
-    if (-not (Test-Path $LogFolder)) {
-        New-Item -ItemType Directory -Path $LogFolder -Force | Out-Null
-    }
-
-    return @{
-        AppDir = $AppDir
-        LogFolder = $LogFolder
-    }
-}
+$ErrorActionPreference = "Stop"
+$ProgressPreference = "SilentlyContinue"
 
 Import-Module "$PSScriptRoot\modules\Logging.psm1"
 Import-Module "$PSScriptRoot\modules\Config.psm1"
@@ -60,49 +7,73 @@ Import-Module "$PSScriptRoot\modules\Image.psm1"
 Import-Module "$PSScriptRoot\modules\System.psm1"
 Import-Module "$PSScriptRoot\modules\Cleanup.psm1"
 
-$bootstrapCfg = Load-Configuration -Root $PSScriptRoot -LogFile ""
+$RemoteConfigUrl = "https://raw.githubusercontent.com/TsofnatMaman/AutoCustomBackgroundDesktop/refactor/config.json"
 
-Ensure-Admin -LogFile "" -ScriptPath $PSCommandPath -SkipRemoteConfig:$SkipRemoteConfig -NoHideWindow:$NoHideWindow
+function Initialize-App {
+    param($cfg)
 
-$configUpdated = $false
-if (-not $SkipRemoteConfig) {
-    $configUpdated = Update-ConfigurationFromRemote -Root $PSScriptRoot -cfg $bootstrapCfg -LogFile ""
+    $appFolder = if ($cfg.app.appFolder) { [string]$cfg.app.appFolder } else { ".wallpaper_cache" }
+    $appDir = Join-Path $env:APPDATA $appFolder
+    $logFolder = Join-Path $appDir "logs"
+
+    Initialize-Logging -AppDir $appDir -LogFolder $logFolder
+
+    return @{
+        AppDir = $appDir
+        LogFolder = $logFolder
+    }
 }
 
-$cfg = Load-Configuration -Root $PSScriptRoot -LogFile ""
+$bootstrapCfg = Load-Configuration -Root $PSScriptRoot -LogFile ""
+$app = Initialize-App -cfg $bootstrapCfg
+$LogFile = Get-LogFile -LogFolder $app.LogFolder
 
-$app = Initialize-App $cfg
-$LogFile = Get-LogFile $app.LogFolder
-
-Initialize-Logging -AppDir $app.AppDir -LogFolder $app.LogFolder
 Write-Log -Message "=== Script Started ===" -LogFile $LogFile
 
+$configUpdated = Update-ConfigurationFromRemote -Root $PSScriptRoot -cfg $bootstrapCfg -LogFile $LogFile -RemoteUrl $RemoteConfigUrl
+$cfg = Load-Configuration -Root $PSScriptRoot -LogFile $LogFile
+$app = Initialize-App -cfg $cfg
+$LogFile = Get-LogFile -LogFolder $app.LogFolder
+
 if ($configUpdated) {
-    Write-Log -Message "Latest config.json downloaded before wallpaper update." -LogFile $LogFile
-}
-elseif ($SkipRemoteConfig) {
-    Write-Log -Message "SkipRemoteConfig is enabled. Using local config.json only." -Level "Warning" -LogFile $LogFile
+    Write-Log -Message "Using refreshed config.json." -LogFile $LogFile
 }
 else {
-    Write-Log -Message "Could not refresh config.json from remote. Using local config." -Level "Warning" -LogFile $LogFile
+    Write-Log -Message "Using local config.json because refresh failed." -Level "Warning" -LogFile $LogFile
 }
 
-$mutexName = if ($cfg.system.mutexName) { $cfg.system.mutexName } else { "WallpaperLock" }
-$mutex = Acquire-Mutex $mutexName -LogFile $LogFile
-if (-not $mutex) { exit }
+$mutexName = if ($cfg.system.mutexName) { [string]$cfg.system.mutexName } else { "WallpaperScriptLock" }
+$mutex = Acquire-Mutex -name $mutexName -LogFile $LogFile
+if (-not $mutex) {
+    Write-Log -Message "Another instance is already running. Exiting." -Level "Warning" -LogFile $LogFile
+    exit
+}
 
 try {
-    $daysRemaining = Get-DaysRemaining (Get-Date $cfg.wallpaper.targetDate) -LogFile $LogFile
+    $targetDateValue = [string]$cfg.wallpaper.targetDate
+    $targetDate = [datetime]::MinValue
 
-    if ($daysRemaining -lt 0) {
-        Write-Log -Message "Target date passed." -LogFile $LogFile
-        Uninstall-Project -LogFile $LogFile
-        return
+    if (-not [datetime]::TryParse($targetDateValue, [ref]$targetDate)) {
+        throw "Invalid wallpaper.targetDate value: '$targetDateValue'"
     }
 
-    Update-WallpaperFlow $cfg $app.AppDir $LogFile $daysRemaining
+    $daysRemaining = Get-DaysRemaining -targetDate $targetDate -LogFile $LogFile
+    if ($daysRemaining -lt 0) {
+        Write-Log -Message "Target date has passed. Using 0 for countdown text." -Level "Warning" -LogFile $LogFile
+        $daysRemaining = 0
+    }
+
+    Write-Log -Message "Configured wallpaper time is $([string]$cfg.wallpaper.time)." -LogFile $LogFile
+    Update-WallpaperFlow -cfg $cfg -AppDir $app.AppDir -LogFile $LogFile -daysRemaining $daysRemaining
+}
+catch {
+    Write-Log -Message "Runtime failed: $($_.Exception.Message)" -Level "Error" -LogFile $LogFile
+    throw
 }
 finally {
-    if ($mutex) { $mutex.ReleaseMutex(); $mutex.Dispose() }
+    if ($mutex) {
+        $mutex.ReleaseMutex()
+        $mutex.Dispose()
+    }
     Write-Log -Message "=== Script Finished ===" -LogFile $LogFile
 }

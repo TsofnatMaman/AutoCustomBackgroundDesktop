@@ -2,7 +2,7 @@
     "app": {
         "name": "WallpaperProject",
         "taskName": "ChangeWallpaperEveryDay",
-        "appFolder": ".wallpaper_cache",
+        "appFolder": ".WallpaperProject/wallpaper_cache",
         "logFilePattern": "wallpaper_{data}.log"
     },
     "github": {

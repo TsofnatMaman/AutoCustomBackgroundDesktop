@@ -1,4 +1,5 @@
 Import-Module (Join-Path $PSScriptRoot "Logging.psm1")
+Import-Module (Join-Path $PSScriptRoot "System.psm1")
 
 function Get-BaseImage {
     param(
@@ -111,7 +112,8 @@ function Export-CountdownImage {
         Write-Log -Message "Setting up font with Hebrew fallback" -Level "Debug" -LogFile $LogFile
         try {
             $fontFamily = New-Object System.Drawing.FontFamily("David")
-        } catch {
+        }
+        catch {
             Write-Log -Message "David font unavailable, falling back to Arial" -Level "Warning" -LogFile $LogFile
             $fontFamily = New-Object System.Drawing.FontFamily("Arial")
         }
@@ -196,23 +198,164 @@ function Build-ImageUrl {
     return "https://raw.githubusercontent.com/$($cfg.github.username)/$($cfg.github.repository)/$($cfg.github.branch)/$($cfg.github.imagePath)"
 }
 
+function Get-ConfiguredBackgroundCandidates {
+    param($cfg)
+
+    $candidates = New-Object System.Collections.Generic.List[string]
+
+    if ($cfg.wallpaper.imageFile) {
+        $candidates.Add([string]$cfg.wallpaper.imageFile)
+    }
+    if ($cfg.wallpaper.imagePath) {
+        $candidates.Add([string]$cfg.wallpaper.imagePath)
+    }
+    if ($cfg.github.imagePath) {
+        $candidates.Add([string]$cfg.github.imagePath)
+    }
+    if ($cfg.wallpaper.backgrounds) {
+        foreach ($entry in @($cfg.wallpaper.backgrounds)) {
+            if (-not [string]::IsNullOrWhiteSpace([string]$entry)) {
+                $candidates.Add([string]$entry)
+            }
+        }
+    }
+    if ($cfg.wallpaper.backgroundFiles) {
+        foreach ($entry in @($cfg.wallpaper.backgroundFiles)) {
+            if (-not [string]::IsNullOrWhiteSpace([string]$entry)) {
+                $candidates.Add([string]$entry)
+            }
+        }
+    }
+
+    return $candidates.ToArray()
+}
+
+function Get-ScheduleSeed {
+    param([string]$TimeString)
+
+    if ([string]::IsNullOrWhiteSpace($TimeString)) {
+        return 540
+    }
+
+    $formats = @("HH:mm", "H:mm", "HH:mm:ss", "H:mm:ss")
+    $parsed = [datetime]::MinValue
+    $culture = [System.Globalization.CultureInfo]::InvariantCulture
+    $styles = [System.Globalization.DateTimeStyles]::None
+
+    if ([datetime]::TryParseExact($TimeString, $formats, $culture, $styles, [ref]$parsed)) {
+        return ($parsed.Hour * 60) + $parsed.Minute
+    }
+
+    return 540
+}
+
+function Resolve-LocalBackgroundImage {
+    param(
+        $cfg,
+        [int]$DaysRemaining,
+        [string]$LogFile,
+        [string]$BackgroundsRoot
+    )
+
+    if ([string]::IsNullOrWhiteSpace($BackgroundsRoot)) {
+        $BackgroundsRoot = Join-Path (Split-Path $PSScriptRoot -Parent) "backgrounds"
+    }
+
+    if (-not (Test-Path -LiteralPath $BackgroundsRoot)) {
+        throw "backgrounds folder not found at $BackgroundsRoot"
+    }
+
+    $allowedExtensions = @('.jpg', '.jpeg', '.png', '.bmp')
+    $available = Get-ChildItem -Path $BackgroundsRoot -File |
+        Where-Object { $allowedExtensions -contains $_.Extension.ToLowerInvariant() } |
+        Sort-Object Name
+
+    if ($available.Count -eq 0) {
+        throw "No local background images were found in $BackgroundsRoot"
+    }
+
+    $configuredCandidates = Get-ConfiguredBackgroundCandidates -cfg $cfg
+    foreach ($candidate in $configuredCandidates) {
+        $leaf = Split-Path -Path $candidate -Leaf
+        if ([string]::IsNullOrWhiteSpace($leaf)) {
+            continue
+        }
+
+        $localPath = Join-Path $BackgroundsRoot $leaf
+        if (Test-Path -LiteralPath $localPath) {
+            Write-Log -Message "Selected configured local background: $leaf" -LogFile $LogFile
+            return $localPath
+        }
+    }
+
+    $selectionMode = if ($cfg.wallpaper.selectionMode) { [string]$cfg.wallpaper.selectionMode } else { "cycle" }
+    if ($selectionMode.ToLowerInvariant() -eq "random") {
+        $selected = Get-Random -InputObject $available
+        Write-Log -Message "Selected random local background: $($selected.Name)" -LogFile $LogFile
+        return $selected.FullName
+    }
+
+    $scheduleSeed = Get-ScheduleSeed -TimeString ([string]$cfg.wallpaper.time)
+    $seed = [Math]::Abs($DaysRemaining) + (Get-Date).DayOfYear + $scheduleSeed
+    $index = $seed % $available.Count
+    $selected = $available[$index]
+
+    Write-Log -Message "Selected cycle local background: $($selected.Name)" -LogFile $LogFile
+    return $selected.FullName
+}
+
 function Update-WallpaperFlow {
-    param($cfg, $AppDir, $LogFile, $daysRemaining)
+    param(
+        $cfg,
+        [string]$AppDir,
+        [string]$LogFile,
+        [int]$daysRemaining
+    )
 
-    $baseImgPath = Join-Path $AppDir "base.jpg"
-    $finalImgPath = Join-Path $AppDir "wallpaper.jpg"
+    $backgroundsRoot = Join-Path (Split-Path $PSScriptRoot -Parent) "backgrounds"
+    if ($cfg.wallpaper.backgroundsFolder) {
+        $candidate = [string]$cfg.wallpaper.backgroundsFolder
+        if ([System.IO.Path]::IsPathRooted($candidate)) {
+            $backgroundsRoot = $candidate
+        }
+        else {
+            $backgroundsRoot = Join-Path (Split-Path $PSScriptRoot -Parent) $candidate
+        }
+    }
 
-    $url = Build-ImageUrl $cfg
-    Write-Log -Message "Fetching: $url" -LogFile $LogFile
+    $baseImgPath = Resolve-LocalBackgroundImage -cfg $cfg -DaysRemaining $daysRemaining -LogFile $LogFile -BackgroundsRoot $backgroundsRoot
 
-    if (Get-BaseImage -Url $url -Path $baseImgPath -LogFile $LogFile) {
-        $msgText = $cfg.wallpaper.text.Replace("{days}", $daysRemaining)
+    $renderText = $true
+    if ($null -ne $cfg.wallpaper.renderCountdownText) {
+        $renderText = [bool]$cfg.wallpaper.renderCountdownText
+    }
 
-        Export-CountdownImage -Base $baseImgPath -Output $finalImgPath -Text $msgText -LogFile $LogFile
-        Set-Wallpaper -Path $finalImgPath -LogFile $LogFile
+    if (-not $renderText) {
+        Set-Wallpaper -Path $baseImgPath -LogFile $LogFile | Out-Null
+        Write-Log -Message "Wallpaper updated from local base image (countdown text disabled)." -LogFile $LogFile
+        return
+    }
 
-        Write-Log -Message "Wallpaper updated successfully." -LogFile $LogFile
+    $textTemplate = if ($cfg.wallpaper.text) { [string]$cfg.wallpaper.text } else { "{days} days left" }
+    $msgText = $textTemplate.Replace("{days}", [string]$daysRemaining)
+
+    $outputName = if ($cfg.wallpaper.outputName) { [string]$cfg.wallpaper.outputName } else { "wallpaper.jpg" }
+    $outputName = Split-Path -Path $outputName -Leaf
+    if ([string]::IsNullOrWhiteSpace($outputName)) {
+        $outputName = "wallpaper.jpg"
+    }
+
+    $finalImgPath = Join-Path $AppDir $outputName
+    $rendered = Export-CountdownImage -Base $baseImgPath -Output $finalImgPath -Text $msgText -LogFile $LogFile
+
+    if ($rendered) {
+        Set-Wallpaper -Path $finalImgPath -LogFile $LogFile | Out-Null
+        Write-Log -Message "Wallpaper updated from local rendered image." -LogFile $LogFile
+    }
+    else {
+        Set-Wallpaper -Path $baseImgPath -LogFile $LogFile | Out-Null
+        Write-Log -Message "Fell back to base local image due to render failure." -Level "Warning" -LogFile $LogFile
     }
 }
 
-Export-ModuleMember -Function Get-BaseImage, Export-CountdownImage, Build-ImageUrl, Update-WallpaperFlow
+Export-ModuleMember -Function Get-BaseImage, Export-CountdownImage, Build-ImageUrl, Get-ConfiguredBackgroundCandidates, Resolve-LocalBackgroundImage, Update-WallpaperFlow

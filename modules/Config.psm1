@@ -51,13 +51,19 @@ function Update-ConfigurationFromRemote {
     param(
         [string]$Root,
         $cfg,
-        [string]$LogFile
+        [string]$LogFile,
+        [string]$RemoteUrl
     )
 
     $path = Join-Path $Root "config.json"
 
     try {
-        $url = Get-RemoteConfigUrl -cfg $cfg
+        $url = if ([string]::IsNullOrWhiteSpace($RemoteUrl)) {
+            Get-RemoteConfigUrl -cfg $cfg
+        }
+        else {
+            $RemoteUrl
+        }
         $downloadUrl = Add-CacheBusterToUrl -Url $url
         $headers = @{
             "Cache-Control" = "no-cache, no-store, must-revalidate"
