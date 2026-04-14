@@ -1,252 +1,148 @@
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 
-$RepoZipUrl = "https://github.com/TsofnatMaman/AutoCustomBackgroundDesktop/archive/refs/heads/refactor.zip"
-$InstallRoot = Join-Path $env:APPDATA ".WallpaperProject"
-$ProjectRoot = Join-Path $InstallRoot "AutoCustomBackgroundDesktop"
-$LogFolder = Join-Path $InstallRoot "logs"
-$LogFile = Join-Path $LogFolder "install.log"
-$InstallMarker = Join-Path $ProjectRoot ".install-complete"
+# ---------------- UI ----------------
+function Show-MessageBox {
+    param([string]$Message, [string]$Title = "Wallpaper Installer")
 
-function Ensure-Directory {
-    param([string]$Path)
-
-    if ([string]::IsNullOrWhiteSpace($Path)) {
-        throw "Directory path is empty."
-    }
-
-    if (-not (Test-Path -LiteralPath $Path)) {
-        New-Item -Path $Path -ItemType Directory -Force | Out-Null
-    }
+    Add-Type -AssemblyName System.Windows.Forms | Out-Null
+    [System.Windows.Forms.MessageBox]::Show(
+        $Message,
+        $Title,
+        [System.Windows.Forms.MessageBoxButtons]::OK,
+        [System.Windows.Forms.MessageBoxIcon]::Information
+    )
 }
 
+# ---------------- LOGGING ----------------
 function Write-Log {
     param(
         [string]$Message,
         [string]$Level = "Info",
-        [string]$LogFilePath
+        [string]$LogFile
     )
 
-    if ([string]::IsNullOrWhiteSpace($LogFilePath)) { return }
+    if (-not $LogFile) { return }
 
-    try {
-        Ensure-Directory -Path (Split-Path -Path $LogFilePath -Parent)
-        $line = "[{0}] [{1}] {2}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $Level, $Message
-        Add-Content -Path $LogFilePath -Value $line -Encoding UTF8
+    $dir = Split-Path $LogFile -Parent
+    if (-not (Test-Path $dir)) {
+        New-Item -ItemType Directory -Path $dir -Force | Out-Null
     }
-    catch {
-        # Logging must never break installation flow.
-    }
+
+    $line = "[{0}] [{1}] {2}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $Level, $Message
+    Add-Content -Path $LogFile -Value $line -Encoding UTF8
 }
 
-function Test-ProjectLayout {
-    param([string]$Root)
+# ---------------- CONFIG ----------------
+function Load-Configuration {
+    param([string]$LogFile)
 
-    if ([string]::IsNullOrWhiteSpace($Root) -or -not (Test-Path -LiteralPath $Root)) {
-        return $false
-    }
+    $url = "https://raw.githubusercontent.com/TsofnatMaman/AutoCustomBackgroundDesktop/refactor/config.json"
+    $tmp = Join-Path $env:TEMP "config.json"
 
-    $requiredFiles = @("main.ps1", "config.json")
-    $requiredFolders = @("modules", "backgrounds", "Tests")
-
-    foreach ($file in $requiredFiles) {
-        if (-not (Test-Path -LiteralPath (Join-Path $Root $file))) {
-            return $false
-        }
-    }
-
-    foreach ($folder in $requiredFolders) {
-        if (-not (Test-Path -LiteralPath (Join-Path $Root $folder))) {
-            return $false
-        }
-    }
-
-    return $true
+    Invoke-WebRequest -Uri $url -OutFile $tmp -ErrorAction Stop
+    return Get-Content $tmp -Raw | ConvertFrom-Json
 }
 
-function Get-InstalledConfiguration {
-    param([string]$ProjectPath)
-
-    $configPath = Join-Path $ProjectPath "config.json"
-    if (-not (Test-Path -LiteralPath $configPath)) {
-        throw "config.json not found at $configPath"
-    }
-
-    return Get-Content -Path $configPath -Raw | ConvertFrom-Json
-}
-
-function Get-DailyTriggerTime {
+# ---------------- ZIP EXTRACT (FIXED) ----------------
+function Extract-Zip {
     param(
-        [string]$TimeString,
-        [string]$LogFilePath
+        [string]$ZipPath,
+        [string]$Destination
     )
 
-    $defaultTime = Get-Date -Hour 9 -Minute 0 -Second 0
-    if ([string]::IsNullOrWhiteSpace($TimeString)) {
-        Write-Log -Message "wallpaper.time is empty. Falling back to 09:00." -Level "Warning" -LogFilePath $LogFilePath
-        return $defaultTime
+    if (-not (Test-Path $ZipPath)) {
+        throw "ZIP not found: $ZipPath"
     }
 
-    $formats = @("HH:mm", "H:mm", "HH:mm:ss", "H:mm:ss")
-    $parsed = [datetime]::MinValue
-    $culture = [System.Globalization.CultureInfo]::InvariantCulture
-    $styles = [System.Globalization.DateTimeStyles]::None
-
-    if ([datetime]::TryParseExact($TimeString, $formats, $culture, $styles, [ref]$parsed)) {
-        return Get-Date -Hour $parsed.Hour -Minute $parsed.Minute -Second 0
+    if (-not (Test-Path $Destination)) {
+        New-Item -ItemType Directory -Path $Destination -Force | Out-Null
     }
 
-    Write-Log -Message "wallpaper.time '$TimeString' is invalid. Falling back to 09:00." -Level "Warning" -LogFilePath $LogFilePath
-    return $defaultTime
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [System.IO.Compression.ZipFile]::ExtractToDirectory($ZipPath, $Destination)
 }
 
-function Install-ProjectFilesIfNeeded {
-    param(
-        [string]$DestinationPath,
-        [string]$MarkerPath,
-        [string]$ZipUrl,
-        [string]$LogFilePath
-    )
+# ---------------- INIT ----------------
+$AppDir = Join-Path $env:APPDATA ".WallpaperProject"
+$LogDir = Join-Path $AppDir "logs"
+$LogFile = Join-Path $LogDir "install.log"
 
-    $isInstalled = Test-ProjectLayout -Root $DestinationPath
-    if ($isInstalled) {
-        Write-Log -Message "Existing installation detected. Skipping ZIP download." -LogFilePath $LogFilePath
-        return $false
+New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
+
+Write-Log "===== INSTALL STARTED =====" "Info" $LogFile
+
+try {
+    # ---------------- LOAD CONFIG ----------------
+    $cfg = Load-Configuration -LogFile $LogFile
+
+    $user = $cfg.github.username
+    $repo = $cfg.github.repository
+    $branch = $cfg.github.branch
+
+    $zipUrl = "https://github.com/$user/$repo/archive/refs/heads/$branch.zip"
+    $zipPath = Join-Path $env:TEMP "wallpaper.zip"
+
+    # ---------------- CLEAN OLD ----------------
+    if (Test-Path $AppDir) {
+        Remove-Item $AppDir -Recurse -Force
     }
 
-    $zipPath = Join-Path $env:TEMP ("AutoCustomBackgroundDesktop_" + [guid]::NewGuid().ToString("N") + ".zip")
-    $extractRoot = Join-Path $env:TEMP ("AutoCustomBackgroundDesktop_extract_" + [guid]::NewGuid().ToString("N"))
+    New-Item -ItemType Directory -Path $AppDir -Force | Out-Null
 
-    try {
-        Write-Log -Message "Downloading project ZIP from $ZipUrl" -LogFilePath $LogFilePath
-        Invoke-WebRequest -Uri $ZipUrl -OutFile $zipPath -ErrorAction Stop
+    # ---------------- DOWNLOAD ZIP ----------------
+    Write-Log "Downloading ZIP..." "Info" $LogFile
+    Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath -ErrorAction Stop
 
-        Ensure-Directory -Path $extractRoot
-        Expand-Archive -Path $zipPath -DestinationPath $extractRoot -Force
+    # ---------------- EXTRACT ZIP ----------------
+    Write-Log "Extracting ZIP..." "Info" $LogFile
+    Extract-Zip -ZipPath $zipPath -Destination $AppDir
 
-        $repoRoot = Get-ChildItem -Path $extractRoot -Directory | Select-Object -First 1
-        if (-not $repoRoot) {
-            throw "ZIP extraction failed: root folder was not found."
-        }
+    Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
 
-        $sourceRoot = $repoRoot.FullName
-        if (-not (Test-Path -LiteralPath (Join-Path $sourceRoot "main.ps1"))) {
-            $nestedRoot = Get-ChildItem -Path $repoRoot.FullName -Directory |
-                Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName "main.ps1") } |
-                Select-Object -First 1
+    # ---------------- FIND PROJECT ROOT ----------------
+    $project = Get-ChildItem $AppDir | Where-Object { $_.PSIsContainer } | Select-Object -First 1
+    $main = Join-Path $project.FullName "main.ps1"
 
-            if ($nestedRoot) {
-                $sourceRoot = $nestedRoot.FullName
-            }
-        }
-
-        if (-not (Test-Path -LiteralPath (Join-Path $sourceRoot "main.ps1"))) {
-            throw "ZIP extraction failed: main.ps1 was not found."
-        }
-
-        if (Test-Path -LiteralPath $DestinationPath) {
-            Remove-Item -LiteralPath $DestinationPath -Recurse -Force
-        }
-
-        Ensure-Directory -Path $DestinationPath
-        Copy-Item -Path (Join-Path $sourceRoot "*") -Destination $DestinationPath -Recurse -Force
-
-        if (-not (Test-ProjectLayout -Root $DestinationPath)) {
-            throw "Installed project layout is incomplete after extraction."
-        }
-
-        Set-Content -Path $MarkerPath -Value (Get-Date -Format "o") -Encoding UTF8
-        Write-Log -Message "Project installed successfully at $DestinationPath" -LogFilePath $LogFilePath
-        return $true
-    }
-    finally {
-        if (Test-Path -LiteralPath $zipPath) {
-            Remove-Item -LiteralPath $zipPath -Force -ErrorAction SilentlyContinue
-        }
-        if (Test-Path -LiteralPath $extractRoot) {
-            Remove-Item -LiteralPath $extractRoot -Recurse -Force -ErrorAction SilentlyContinue
-        }
-    }
-}
-
-function Register-WallpaperScheduledTask {
-    param(
-        [string]$TaskName,
-        [datetime]$DailyTime,
-        [string]$MainScriptPath,
-        [string]$LogFilePath
-    )
-
-    if (-not (Test-Path -LiteralPath $MainScriptPath)) {
-        throw "Cannot register scheduled task. Script not found: $MainScriptPath"
+    if (-not (Test-Path $main)) {
+        throw "main.ps1 missing after extraction"
     }
 
-    $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
-    $scriptDir = Split-Path -Path $MainScriptPath -Parent
-    $taskExists = $null -ne (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue)
-    $actionArgs = "-NoProfile -ExecutionPolicy Bypass -File `"$MainScriptPath`""
+    # ---------------- CREATE TASK ----------------
+    Write-Log "Creating scheduled task..." "Info" $LogFile
 
-    $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument $actionArgs -WorkingDirectory $scriptDir
-    $dailyTrigger = New-ScheduledTaskTrigger -Daily -At $DailyTime
-    $logonTrigger = New-ScheduledTaskTrigger -AtLogOn
+    $action = New-ScheduledTaskAction `
+        -Execute "powershell.exe" `
+        -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$main`""
+
+    $trigger1 = New-ScheduledTaskTrigger -AtLogOn
+    $trigger2 = New-ScheduledTaskTrigger -Daily -At $cfg.wallpaper.time
 
     $settings = New-ScheduledTaskSettingsSet `
         -StartWhenAvailable `
         -AllowStartIfOnBatteries `
         -DontStopIfGoingOnBatteries `
-        -MultipleInstances IgnoreNew `
-        -Compatibility Win8
-    $settings.Hidden = $false
+        -MultipleInstances IgnoreNew
 
-    $principal = New-ScheduledTaskPrincipal -UserId $currentUser -LogonType Interactive -RunLevel Limited
+    $principal = New-ScheduledTaskPrincipal `
+        -UserId $env:USERNAME `
+        -LogonType Interactive `
+        -RunLevel Highest
 
     Register-ScheduledTask `
-        -TaskName $TaskName `
-        -Description "AutoCustomBackgroundDesktop wallpaper runtime task" `
+        -TaskName $cfg.app.taskName `
         -Action $action `
-        -Trigger @($logonTrigger, $dailyTrigger) `
+        -Trigger @($trigger1, $trigger2) `
         -Settings $settings `
         -Principal $principal `
         -Force | Out-Null
 
-    $status = if ($taskExists) { "updated" } else { "created" }
-    Write-Log -Message "Scheduled task '$TaskName' $status for user '$currentUser' at $($DailyTime.ToString('HH:mm'))." -LogFilePath $LogFilePath
-}
+    Write-Log "INSTALL COMPLETE" "Info" $LogFile
 
-Ensure-Directory -Path $InstallRoot
-Ensure-Directory -Path $LogFolder
-Write-Log -Message "===== Installation started =====" -LogFilePath $LogFile
-
-try {
-    $downloaded = Install-ProjectFilesIfNeeded `
-        -DestinationPath $ProjectRoot `
-        -MarkerPath $InstallMarker `
-        -ZipUrl $RepoZipUrl `
-        -LogFilePath $LogFile
-
-    if (-not (Test-ProjectLayout -Root $ProjectRoot)) {
-        throw "Installation validation failed. Required project files/folders are missing."
-    }
-
-    $cfg = Get-InstalledConfiguration -ProjectPath $ProjectRoot
-
-    $taskName = if ($cfg.app.taskName) { [string]$cfg.app.taskName } else { "ChangeWallpaperEveryDay" }
-    $dailyTime = Get-DailyTriggerTime -TimeString $cfg.wallpaper.time -LogFilePath $LogFile
-    $mainScriptPath = Join-Path $ProjectRoot "main.ps1"
-
-    Register-WallpaperScheduledTask `
-        -TaskName $taskName `
-        -DailyTime $dailyTime `
-        -MainScriptPath $mainScriptPath `
-        -LogFilePath $LogFile
-
-    $mode = if ($downloaded) { "fresh install" } else { "existing install reused" }
-    Write-Log -Message "Installation completed successfully ($mode)." -LogFilePath $LogFile
-    Write-Host "Installation completed successfully."
+    Show-MessageBox "Installation completed successfully"
 }
 catch {
-    Write-Log -Message $_.Exception.Message -Level "Error" -LogFilePath $LogFile
-    Write-Host "Installation failed: $($_.Exception.Message)"
+    Write-Log $_.Exception.Message "Error" $LogFile
+    Show-MessageBox "Installation failed: $($_.Exception.Message)"
     exit 1
 }
-
