@@ -1,13 +1,17 @@
-function Initilize-Logging {
+function Initialize-Logging {
     param(
         [string]$LogFolder
     )
 
-    if(-not [string]::IsNullOrWhiteSpace($LogFolder) -and -not (Test-Path $LogFolder)){
+    if (-not [string]::IsNullOrWhiteSpace($LogFolder) -and -not (Test-Path $LogFolder)) {
         New-Item -ItemType Directory -Path $LogFolder -Force | Out-Null
     }
 
-    return "$LogFolder\$(Get-Date).log"
+    $timestamp = Get-Date -Format "yyyy-MM-dd_HH-mm-ss"
+    $logFile = Join-Path $LogFolder "$timestamp.log"
+
+    Write-Host $logFile
+    return $logFile
 }
 
 function Write-Log {
@@ -33,4 +37,4 @@ function Write-Log {
     catch {}
 }
 
-Export-ModuleMember -Function Initilize-Logging, Write-Log
+Export-ModuleMember -Function Initialize-Logging, Write-Log

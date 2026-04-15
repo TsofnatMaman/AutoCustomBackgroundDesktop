@@ -7,12 +7,12 @@ Import-Module "./Src/Modules/System.psm1"
 
 function DailyRun {
     $logFolder = Join-Path "$env:APPDATA" ".wallpaper_countdown\cache"
-    $logFile = Initilize-Logging -LogFolder $logFolder
+    $logFile = Initialize-Logging -LogFolder $logFolder
 
     # ====== Poll Config ======
     $configPath = Join-Path $env:APPDATA ".wallpaper_countdown\Src\config.json"
     $cfg = Get-Config -ConfigFilePath $configPath -LogFile $logFile
-    Poll-RemoteConfig -cfg $cfg -Path $configPath -LogFile $logFile
+    $null = Poll-RemoteConfig -cfg $cfg -Path $configPath -LogFile $logFile
     $cfg = Get-Config -ConfigFilePath $configPath -LogFile $logFile
 
     # ===== Img Handling =====
@@ -20,7 +20,7 @@ function DailyRun {
     $imgPathDefault = "$env:APPDATA/.wallpaper_countdown/Src/$imgPath"
     $outImgDefault = "$env:APPDATA/.wallpaper_countdown/cache/$imgPath"
 
-    Poll-Img -cfg $cfg -Path $imgPathDefault -LogFile $logFile
+    $null = Poll-Img -cfg $cfg -Path $imgPathDefault -LogFile $logFile
     $textDaysRemain = Get-DaysText -cfg $cfg
     Export-CountdownImage -Base $imgPathDefault -Output $outImgDefault -Text $textDaysRemain -LogFile $logFile
     Set-Wallpaper -Path $outImgDefault -LogFile $logFile

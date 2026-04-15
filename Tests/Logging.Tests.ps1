@@ -2,20 +2,20 @@ Import-Module "./Src/Modules/Logging.psm1"
 
 Describe "Logging Module" {
 
-    Context "Initilize-Logging" {
+    Context "Initialize-Logging" {
         It "Should create the directory if it does not exist" {
             $testPath = "TestDrive:\Logs"
             
             # Ensure it doesn't exist before we start
             if (Test-Path $testPath) { Remove-Item $testPath -Recurse }
 
-            Initilize-Logging -LogFolder $testPath
+            Initialize-Logging -LogFolder $testPath
 
             Test-Path $testPath | Should -Be $true
         }
 
         It "Should not throw an error if the path is empty" {
-            { Initilize-Logging -LogFolder "" } | Should -Not -Throw
+            { Initialize-Logging -LogFolder "" } | Should -Not -Throw
         }
     }
 

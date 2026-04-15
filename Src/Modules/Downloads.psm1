@@ -99,8 +99,8 @@ function Poll-Img {
         Write-Log -Message "build default Path: $Path" -Level "Info" -LogFile $LogFile
     }
 
-    $result = Poll-Remote -RemoteUrl $ImgRemoteUrl -Path $Path
-    Write-Host "DOWNLOAD RESULT: $result"
+    $result = Poll-Remote -RemoteUrl $ImgRemoteUrl -Path $Path -LogFile $LogFile
+    return $result
 }
 
 Export-ModuleMember -Function Get-RemoteBaseUrl, Poll-RemoteConfig, Poll-Img
