@@ -1,4 +1,4 @@
-Import-Module "$PSScriptRoot/Logging.psm1"
+﻿Import-Module "$PSScriptRoot/Logging.psm1"
 
 function Export-CountdownImage {
     param(
