@@ -111,3 +111,5 @@ Get-Repo
 Set-ScheduledTask
 # run first daily_run
 & "$env:APPDATA/.wallpaper_countdown/Src/daily_run.ps1"
+
+#TODO: VBS

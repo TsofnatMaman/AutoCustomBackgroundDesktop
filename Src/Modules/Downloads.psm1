@@ -26,13 +26,12 @@ function Poll-Remote {
     )
 
     try {
-
         $dir = Split-Path $Path -Parent
         if (-not (Test-Path $dir)) {
             Write-Log -Message "dir not found. creating now." -Level "Info" -LogFile $LogFile
             New-Item -ItemType Directory -Path $dir -Force | Out-Null
         }
-        
+
         Write-Log -Message "Downloading latest file from: $RemoteUrl" -Level "Info" -LogFile $LogFile
 
         $headers = @{
@@ -41,12 +40,20 @@ function Poll-Remote {
             "Expires"       = "0"
         }
 
-        Invoke-WebRequest -Uri $RemoteUrl -Headers $headers -OutFile $Path -ErrorAction Stop
+        $tempPath = "$Path.tmp"
+
+        Invoke-WebRequest -Uri $RemoteUrl -Headers $headers -OutFile $tempPath -ErrorAction Stop
+
+        Move-Item -Force $tempPath $Path
 
         Write-Log -Message "File refreshed successfully at: $Path" -Level "Info" -LogFile $LogFile
         return $true
     }
     catch {
+        if (Test-Path "$Path.tmp") {
+            Remove-Item "$Path.tmp" -Force -ErrorAction SilentlyContinue
+        }
+
         Write-Log -Message "Configuration refresh failed: $($_.Exception.Message)" -Level "Warning" -LogFile $LogFile
         return $false
     }
