@@ -3,6 +3,10 @@ function Initialize-Logging {
         [string]$LogFolder
     )
 
+    if ([string]::IsNullOrWhiteSpace($LogFolder)) {
+        return ""
+    }
+
     if (-not [string]::IsNullOrWhiteSpace($LogFolder) -and -not (Test-Path $LogFolder)) {
         New-Item -ItemType Directory -Path $LogFolder -Force | Out-Null
     }
