@@ -68,7 +68,7 @@ function Get-Repo {
 
 # config ScheduledTask to run in $cfg.wallpaper.time that runing the daily_run every day. when its possible, for example, if the copmuter off, when it will on and login. run if computer on battery mode. and so on
 function Set-ScheduledTask {
-    Import-Module "$env:APPDATA/.wallpaper_countdown/Src/Moduled/Config.psm1"
+    Import-Module "$env:APPDATA/.wallpaper_countdown/Src/Modules/Config.psm1"
     $configFilePath = "$env:APPDATA/.wallpaper_countdown/Src/config.json"
 
     Write-Log "Get configuration..." "Info" $logFile
