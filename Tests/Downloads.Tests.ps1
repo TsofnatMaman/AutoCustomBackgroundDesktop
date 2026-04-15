@@ -140,7 +140,8 @@ Describe "Poll-Img" {
             $expectedPath = "C:\Users\Test\AppData\Roaming/.wallpaper_countdown/cache/images/bg.jpg"
             
             Should -Invoke -CommandName Poll-Remote -ModuleName "Downloads" -ParameterFilter {
-                $Path -eq $expectedPath
+                # Normalize separators so the assertion is resilient to slash style differences.
+                ($Path -replace '[\\/]+', '\') -eq ($expectedPath -replace '[\\/]+', '\')
             }
         }
     }

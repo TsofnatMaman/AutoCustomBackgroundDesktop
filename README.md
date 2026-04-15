@@ -2,7 +2,7 @@
 install Pester -RequiredVersion 5.0.0
 
 ```PS
-Import-Module Pester -RequiredVersion 5 -Force
+Import-Module Pester -RequiredVersion 5.7.1 -Force
 
 Invoke-Pester .\Tests
 
