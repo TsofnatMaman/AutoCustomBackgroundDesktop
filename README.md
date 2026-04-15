@@ -156,7 +156,13 @@ Invoke-ps2exe .\install.ps1 .\install.exe `
 ## for run the tests:
 install Pester -RequiredVersion 5.0.0
 ```PS
+Import-Module Pester -RequiredVersion 5 -Force
+
 Invoke-Pester .\Tests
+
+ Invoke-Pester -Path .\Tests -CodeCoverage @(    
+    '.\Src\*.ps1',
+    '.\Src\Modules\*.psm1'
 ```
 
 ## for uninstall run from **adminitrator PS**
