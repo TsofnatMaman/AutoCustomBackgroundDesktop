@@ -4,7 +4,7 @@ Import-Module "./Src/Modules/Countdown.psm1"
 Import-Module "./Src/Modules/Image.psm1"
 Import-Module "./Src/Modules/System.psm1"
 
-function main {
+function DailyRun {
     $logFile = "C:\Users\tsofn\AppData\Roaming\.wallpaper_countdown\cache\15-04-26.log"
 
     # ====== Poll Config ======
@@ -24,4 +24,4 @@ function main {
     Set-Wallpaper -Path $outImgDefault -LogFile $logFile
 }
 
-main
+DailyRun
