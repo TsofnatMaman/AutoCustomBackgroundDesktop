@@ -6,22 +6,30 @@ Import-Module "./Src/Modules/Image.psm1"
 Import-Module "./Src/Modules/System.psm1"
 
 function DailyRun {
-    $logFolder = Join-Path "$env:APPDATA" ".wallpaper_countdown\cache"
+    $appDir = Join-Path "$env:APPDATA" ".wallpaper_countdown"
+
+    $logFolder = Join-Path $appDir "cache"
     $logFile = Initialize-Logging -LogFolder $logFolder
 
     # ====== Poll Config ======
-    $configPath = Join-Path $env:APPDATA ".wallpaper_countdown\Src\config.json"
+    $configPath = Join-Path $appDir "Src\config.json"
     $cfg = Get-Config -ConfigFilePath $configPath -LogFile $logFile
     $null = Poll-RemoteConfig -cfg $cfg -Path $configPath -LogFile $logFile
     $cfg = Get-Config -ConfigFilePath $configPath -LogFile $logFile
 
     # ===== Img Handling =====
     $imgPath = $cfg.github.imagePath
-    $imgPathDefault = "$env:APPDATA/.wallpaper_countdown/Src/$imgPath"
-    $outImgDefault = "$env:APPDATA/.wallpaper_countdown/cache/$imgPath"
+    $imgPathDefault = Join-Path $appDir "Src/$imgPath"
+    $outImgDefault = Join-Path $appDir "cache/$imgPath"
 
     $null = Poll-Img -cfg $cfg -Path $imgPathDefault -LogFile $logFile
-    # TODO: if days ramain equals 0 - uninstall
+
+    # if days ramain equals 0 - uninstall
+    $dayRemain = Get-DaysRemaining $cfg
+    if($dayRemain -eq 0) {
+        Start-Process powershell -ArgumentList "-File `"$appDir\Src\uninstall.ps1`"" -WindowStyle Hidden
+        return
+    }
     
     $textDaysRemain = Get-DaysText -cfg $cfg
     Export-CountdownImage -Base $imgPathDefault -Output $outImgDefault -Text $textDaysRemain -LogFile $logFile
