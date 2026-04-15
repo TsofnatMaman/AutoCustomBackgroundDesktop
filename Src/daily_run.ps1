@@ -21,6 +21,8 @@ function DailyRun {
     $outImgDefault = "$env:APPDATA/.wallpaper_countdown/cache/$imgPath"
 
     $null = Poll-Img -cfg $cfg -Path $imgPathDefault -LogFile $logFile
+    # TODO: if days ramain equals 0 - uninstall
+    
     $textDaysRemain = Get-DaysText -cfg $cfg
     Export-CountdownImage -Base $imgPathDefault -Output $outImgDefault -Text $textDaysRemain -LogFile $logFile
     Set-Wallpaper -Path $outImgDefault -LogFile $logFile
