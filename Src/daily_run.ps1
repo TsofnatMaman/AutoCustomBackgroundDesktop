@@ -1,3 +1,4 @@
+Import-Module "./Src/Modules/Logging.psm1"
 Import-Module "./Src/Modules/Config.psm1"
 Import-Module "./Src/Modules/Downloads.psm1"
 Import-Module "./Src/Modules/Countdown.psm1"
@@ -5,7 +6,8 @@ Import-Module "./Src/Modules/Image.psm1"
 Import-Module "./Src/Modules/System.psm1"
 
 function DailyRun {
-    $logFile = "C:\Users\tsofn\AppData\Roaming\.wallpaper_countdown\cache\15-04-26.log"
+    $logFolder = Join-Path "$env:APPDATA" ".wallpaper_countdown\cache"
+    $logFile = Initilize-Logging -LogFolder $logFolder
 
     # ====== Poll Config ======
     $configPath = Join-Path $env:APPDATA ".wallpaper_countdown\Src\config.json"

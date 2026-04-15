@@ -6,6 +6,8 @@ function Initilize-Logging {
     if(-not [string]::IsNullOrWhiteSpace($LogFolder) -and -not (Test-Path $LogFolder)){
         New-Item -ItemType Directory -Path $LogFolder -Force | Out-Null
     }
+
+    return "$LogFolder\$(Get-Date).log"
 }
 
 function Write-Log {
