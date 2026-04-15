@@ -63,7 +63,7 @@ function Poll-RemoteConfig {
     if ([string]::IsNullOrWhiteSpace($RemoteConfigUrl)) {
         Write-Log -Message "Remote config url not found. Creating now..." -Level "Info" -LogFile $LogFile
         $RemoteConfigUrl = Get-RemoteBaseUrl -cfg $cfg
-        $RemoteConfigUrl = "$RemoteConfigUrl/config.json"
+        $RemoteConfigUrl = "$RemoteConfigUrl/Src/config.json"
         Write-Log -Message "Build Remote config url: $RemoteConfigUrl" -Level "Info" -LogFile $LogFile
     }
 
