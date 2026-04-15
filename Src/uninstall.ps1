@@ -10,10 +10,10 @@ function Write-Log {
 
 function Unregister-Task {
     try {
-        $configPath = "$env:APPDATA\.wallpaper_countdown\Src\config.json"
+        $configPath = Join-Path $localPath "Src\config.json"
 
         if(-not (Test-Path $configPath)){
-            $taskName = "WallpaperCountdown"
+            $taskName = "ChangeWallpaperEveryDay"
         }
         else {
             $cfg = Get-Content $configPath | ConvertFrom-Json
