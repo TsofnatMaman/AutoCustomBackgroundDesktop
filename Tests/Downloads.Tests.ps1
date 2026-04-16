@@ -1,4 +1,4 @@
-Import-Module "$PSScriptRoot/Src/Modules/Downloads.psm1"
+Import-Module "$PSScriptRoot/../Src/Modules/Downloads.psm1"
 
 Describe "Get-RemoteBaseUrl" {
     

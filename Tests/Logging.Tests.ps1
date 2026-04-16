@@ -1,4 +1,4 @@
-Import-Module "$PSScriptRoot/Src/Modules/Logging.psm1"
+Import-Module "$PSScriptRoot/../Src/Modules/Logging.psm1"
 
 Describe "Logging Module" {
 

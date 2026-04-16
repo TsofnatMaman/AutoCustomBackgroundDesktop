@@ -1,5 +1,5 @@
-Import-Module "$PSScriptRoot/Src/Modules/Config.psm1"
-Import-Module "$PSScriptRoot/Src/Modules/Logging.psm1"
+Import-Module "$PSScriptRoot/../Src/Modules/Config.psm1"
+Import-Module "$PSScriptRoot/../Src/Modules/Logging.psm1"
 
 Describe "Get-Config" {
     BeforeAll {
