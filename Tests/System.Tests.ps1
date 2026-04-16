@@ -1,4 +1,4 @@
-Import-Module "./Src/Modules/System.psm1"
+Import-Module "$PSScriptRoot/Src/Modules/System.psm1"
 
 Describe "Set-Wallpaper" {
     BeforeAll {

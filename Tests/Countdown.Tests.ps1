@@ -1,4 +1,4 @@
-Import-Module "./Src/Modules/Countdown.psm1" -Force
+Import-Module "$PSScriptRoot/Src/Modules/Countdown.psm1" -Force
 
 Describe "Days Calculation Module" {
     BeforeAll {

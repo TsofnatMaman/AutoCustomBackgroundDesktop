@@ -1,4 +1,4 @@
-Import-Module "./Src/Modules/Image.psm1" -Force
+Import-Module "$PSScriptRoot/Src/Modules/Image.psm1" -Force
 
 Describe "Export-CountdownImage" {
     BeforeAll {

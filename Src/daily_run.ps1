@@ -1,9 +1,9 @@
-Import-Module "./Src/Modules/Logging.psm1"
-Import-Module "./Src/Modules/Config.psm1"
-Import-Module "./Src/Modules/Downloads.psm1"
-Import-Module "./Src/Modules/Countdown.psm1"
-Import-Module "./Src/Modules/Image.psm1"
-Import-Module "./Src/Modules/System.psm1"
+Import-Module "$PSScriptRoot/Modules/Logging.psm1"
+Import-Module "$PSScriptRoot/Modules/Config.psm1"
+Import-Module "$PSScriptRoot/Modules/Downloads.psm1"
+Import-Module "$PSScriptRoot/Modules/Countdown.psm1"
+Import-Module "$PSScriptRoot/Modules/Image.psm1"
+Import-Module "$PSScriptRoot/Modules/System.psm1"
 
 function DailyRun {
     $appDir = Join-Path "$env:APPDATA" ".wallpaper_countdown"
