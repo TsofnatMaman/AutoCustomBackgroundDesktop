@@ -80,6 +80,11 @@ function Set-ScheduledTask {
         -Execute "powershell.exe" `
         -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$env:APPDATA\.wallpaper_countdown\Src\daily_run.ps1`"" # -NoExit
 
+    #TODO: VBS
+    # $action = New-ScheduledTaskAction `
+    #     -Execute "wscript.exe" `
+    #     -Argument "`"$env:APPDATA\.wallpaper_countdown\run_hidden.vbs`""
+
     $dailyTrigger = New-ScheduledTaskTrigger -Daily -At $cfg.wallpaper.time
     $logonTrigger = New-ScheduledTaskTrigger -AtLogOn
 
@@ -111,5 +116,3 @@ Get-Repo
 Set-ScheduledTask
 # run first daily_run
 & "$env:APPDATA/.wallpaper_countdown/Src/daily_run.ps1"
-
-#TODO: VBS
