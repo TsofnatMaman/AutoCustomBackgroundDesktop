@@ -78,7 +78,7 @@ function Set-ScheduledTask {
     Write-Log "Creating scheduled task..." "Info" $logFile
     $action = New-ScheduledTaskAction `
         -Execute "powershell.exe" `
-        -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$env:APPDATA\.wallpaper_countdown\Src\daily_run.ps1`""
+        -Argument "-NoProfile -ExecutionPolicy Bypass -NoExit -File `"$env:APPDATA\.wallpaper_countdown\Src\daily_run.ps1`""
 
     $dailyTrigger = New-ScheduledTaskTrigger -Daily -At $cfg.wallpaper.time
     $logonTrigger = New-ScheduledTaskTrigger -AtLogOn
