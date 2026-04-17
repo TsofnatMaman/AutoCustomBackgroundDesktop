@@ -76,14 +76,13 @@ function Set-ScheduledTask {
     $cfg = Get-Config $configFilePath $logFile
     
     Write-Log "Creating scheduled task..." "Info" $logFile
-    $action = New-ScheduledTaskAction `
-        -Execute "powershell.exe" `
-        -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$env:APPDATA\.wallpaper_countdown\Src\daily_run.ps1`"" # -NoExit
-
-    #TODO: VBS
     # $action = New-ScheduledTaskAction `
-    #     -Execute "wscript.exe" `
-    #     -Argument "`"$env:APPDATA\.wallpaper_countdown\run_hidden.vbs`""
+    #     -Execute "powershell.exe" `
+    #     -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$env:APPDATA\.wallpaper_countdown\Src\daily_run.ps1`"" # -NoExit
+
+    $action = New-ScheduledTaskAction `
+        -Execute "wscript.exe" `
+        -Argument "`"$env:APPDATA\.wallpaper_countdown\Src\run_hidden.vbs`""
 
     $dailyTrigger = New-ScheduledTaskTrigger -Daily -At $cfg.wallpaper.time
     $logonTrigger = New-ScheduledTaskTrigger -AtLogOn
