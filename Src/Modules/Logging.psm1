@@ -14,7 +14,6 @@ function Initialize-Logging {
     $timestamp = Get-Date -Format "yyyy-MM-dd_HH-mm-ss"
     $logFile = Join-Path $LogFolder "$timestamp.log"
 
-    Write-Host $logFile
     return $logFile
 }
 

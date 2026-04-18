@@ -1,3 +1,5 @@
+$ConfirmPreference = 'None'
+
 $localPath = Join-Path $env:APPDATA ".wallpaper_countdown"
 
 function Write-Log {

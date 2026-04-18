@@ -50,6 +50,7 @@ function Get-Repo {
     }
     catch {
         Write-Log "Download failed!" "Error" $logFile
+        throw "Download failed!"
         return
     }
 
@@ -68,7 +69,7 @@ function Get-Repo {
 
 # config ScheduledTask to run in $cfg.wallpaper.time that runing the daily_run every day. when its possible, for example, if the copmuter off, when it will on and login. run if computer on battery mode. and so on
 function Set-ScheduledTask {
-    Import-Module "$env:APPDATA/.wallpaper_countdown/Src/Modules/Config.psm1"
+    Import-Module "$env:APPDATA/.wallpaper_countdown/Src/Modules/Config.psm1" -WarningAction SilentlyContinue
     $configFilePath = "$env:APPDATA/.wallpaper_countdown/Src/config.json"
 
     Write-Log "Get configuration..." "Info" $logFile
@@ -105,13 +106,20 @@ function Set-ScheduledTask {
     }
     catch {
         Write-Log "Register task failed!" "Error" $logFile
+        throw "Register task failed!"
     }
 }
 
 New-Item -ItemType Directory -Path $localPath -Force | Out-Null
 Write-Log "Start installing..." "Info" $logFile
 
-Get-Repo
-Set-ScheduledTask
-# run first daily_run
-& "$env:APPDATA/.wallpaper_countdown/Src/daily_run.ps1"
+try {
+    Get-Repo *> $null
+    Set-ScheduledTask *> $null
+    # run first daily_run 
+    & "$env:APPDATA/.wallpaper_countdown/Src/daily_run.ps1" *> $null
+    Write-Host "Install success!"
+}
+catch {
+    Write-Host "Install failed!"
+}

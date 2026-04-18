@@ -35,7 +35,15 @@ install ps2exe module
 Invoke-ps2exe .\install.ps1 .\install.exe `
    -noConsole `
    -requireAdmin `
-   -iconFile .\icon.ico `
+   -iconFile .\icons\install.ico `
    -title "Wallpaper Installer" `
    -description "Installs wallpaper automation"
+
+Invoke-ps2exe .\uninstall.ps1 .\uninstall.exe `
+  -noConsole `
+  -requireAdmin `
+  -iconFile .\icons\uninstall.ico `
+  -title "Wallpaper Uninstaller" `
+  -description "Uninstalls wallpaper automation"
+
 ```
