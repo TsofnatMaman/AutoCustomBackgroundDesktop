@@ -133,15 +133,21 @@ Describe "Poll-Img" {
 
         It "Should use the default APPDATA path if Path is null" {
             # Setup environment variable for test consistency
-            $env:APPDATA = "C:\Users\Test\AppData\Roaming"
-            
-            Poll-Img -cfg $mockCfg -ImgRemoteUrl "https://manual.com/img.png" -Path ""
+            $oldAppData = $env:APPDATA
+            try {
+                $env:APPDATA = "C:\Users\Test\AppData\Roaming"
+                
+                Poll-Img -cfg $mockCfg -ImgRemoteUrl "https://manual.com/img.png" -Path ""
 
-            $expectedPath = "C:\Users\Test\AppData\Roaming/.wallpaper_countdown/cache/images/bg.jpg"
-            
-            Should -Invoke -CommandName Poll-Remote -ModuleName "Downloads" -ParameterFilter {
-                # Normalize separators so the assertion is resilient to slash style differences.
-                ($Path -replace '[\\/]+', '\') -eq ($expectedPath -replace '[\\/]+', '\')
+                $expectedPath = "C:\Users\Test\AppData\Roaming/.wallpaper_countdown/cache/images/bg.jpg"
+                
+                Should -Invoke -CommandName Poll-Remote -ModuleName "Downloads" -ParameterFilter {
+                    # Normalize separators so the assertion is resilient to slash style differences.
+                    ($Path -replace '[\\/]+', '\') -eq ($expectedPath -replace '[\\/]+', '\')
+                }
+            }
+            finally {
+                $env:APPDATA = $oldAppData
             }
         }
     }

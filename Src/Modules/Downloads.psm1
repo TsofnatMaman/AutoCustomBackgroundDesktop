@@ -22,7 +22,8 @@ function Poll-Remote {
     param(
         [string]$RemoteUrl,
         [string]$Path,
-        [string]$LogFile = $null
+        [string]$LogFile = $null,
+        [int]$TimeoutSec = 60
     )
 
     try {
@@ -40,9 +41,9 @@ function Poll-Remote {
             "Expires"       = "0"
         }
 
-        $tempPath = "$Path.tmp"
+        $tempPath = "$Path.$([guid]::NewGuid().ToString('N')).tmp"
 
-        Invoke-WebRequest -Uri $RemoteUrl -Headers $headers -OutFile $tempPath -ErrorAction Stop
+        Invoke-WebRequest -Uri $RemoteUrl -Headers $headers -OutFile $tempPath -TimeoutSec $TimeoutSec -ErrorAction Stop
 
         Move-Item -Force $tempPath $Path
 
@@ -50,8 +51,8 @@ function Poll-Remote {
         return $true
     }
     catch {
-        if (Test-Path "$Path.tmp") {
-            Remove-Item "$Path.tmp" -Force -ErrorAction SilentlyContinue
+        if ($tempPath -and (Test-Path $tempPath)) {
+            Remove-Item $tempPath -Force -ErrorAction SilentlyContinue
         }
 
         Write-Log -Message "Configuration refresh failed: $($_.Exception.Message)" -Level "Warning" -LogFile $LogFile
@@ -92,6 +93,22 @@ function Poll-Img {
     )
 
     $imgPath = $cfg.github.imagePath
+    
+    # Validate and sanitize imagePath
+    if ([string]::IsNullOrWhiteSpace($imgPath)) {
+        Write-Log -Message "imagePath is empty, using default" -Level "Warning" -LogFile $LogFile
+        $imgPath = "images/bg.jpg"
+    }
+    elseif ($imgPath -match '(\.\.|\\\.\.|\.\\\.)') {
+        Write-Log -Message "imagePath contains path traversal tokens, using safe default" -Level "Warning" -LogFile $LogFile
+        $imgPath = "images/bg.jpg"
+    }
+    else {
+        # Normalize path separators
+        $imgPath = $imgPath -replace '\\', '/'
+        # Remove leading slashes
+        $imgPath = $imgPath -replace '^[/]+', ''
+    }
 
     if ([string]::IsNullOrWhiteSpace($ImgRemoteUrl)) {
         Write-Log -Message "ImgRemoteUrl not found. building now..." -Level "Info" -LogFile $LogFile

@@ -46,8 +46,9 @@ Describe "Export-CountdownImage" {
 
         It "Successfully completes the try block when inputs are valid" {
             # Setup: Create a tiny real dummy image to satisfy the .NET calls
-            $dummyPath = Join-Path $env:TEMP "dummy_base.jpg"
-            $outputPath = Join-Path $env:TEMP "output_test.jpg"
+            $testRoot = (Get-PSDrive TestDrive).Root
+            $dummyPath = Join-Path $testRoot "dummy_base.jpg"
+            $outputPath = Join-Path $testRoot "output_test.jpg"
             
             $bmp = New-Object System.Drawing.Bitmap(10, 10)
             $bmp.Save($dummyPath, [System.Drawing.Imaging.ImageFormat]::Jpeg)

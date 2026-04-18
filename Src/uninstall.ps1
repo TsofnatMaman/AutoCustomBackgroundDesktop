@@ -22,23 +22,25 @@ function Unregister-Task {
             $taskName = $cfg.system.taskName
         }
 
-        Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
-        Write-Log "Scheduled Task removed"
+        Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction Stop
+        Write-Log "Scheduled Task $taskName removed"
     }
     catch {
-        Write-Log "No scheduled task found or failed to remove"
+        Write-Log "Failed to remove scheduled task: $($_.Exception.Message)"
+        throw
     }
 }
 
 function Remove-Folder {
     try {
         if(Test-Path $localPath) {
-            Remove-Item $localPath -Recurse -Force
+            Remove-Item $localPath -Recurse -Force -ErrorAction Stop
             Write-Log "Deleted Folder $localPath"
         }
     }
     catch {
-        Write-Log "Failed to delete folder $localPath"
+        Write-Log "Failed to delete folder ${localPath}: $($_.Exception.Message)"
+        throw
     }
 }
 

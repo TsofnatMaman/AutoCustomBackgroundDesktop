@@ -39,10 +39,9 @@ function Extract-Zip {
 
 function Get-Repo {
     Write-Log "===== INSTALL STARTED =====" "Info" $logFile
-    
-    Remove-Item "$localPath\*" -Recurse -Force -ErrorAction SilentlyContinue
 
     $zipPath = Join-Path $env:TEMP "wallpaper.zip"
+    $stagingPath = Join-Path $env:TEMP ("wallpaper_extract_" + [guid]::NewGuid().ToString())
 
     Write-Log "Downloading ZIP..." "Info" $logFile
     try {
@@ -50,21 +49,41 @@ function Get-Repo {
     }
     catch {
         Write-Log "Download failed!" "Error" $logFile
+        if (Test-Path $zipPath) { Remove-Item $zipPath -Force -ErrorAction SilentlyContinue }
         throw "Download failed!"
-        return
     }
 
     Write-Log "Extracting ZIP..." "Info" $logFile
-    Extract-Zip -ZipPath $zipPath -Destination $localPath
-    Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
+    try {
+        Extract-Zip -ZipPath $zipPath -Destination $stagingPath
+    }
+    catch {
+        Write-Log "Extraction failed!" "Error" $logFile
+        Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
+        Remove-Item $stagingPath -Recurse -Force -ErrorAction SilentlyContinue
+        throw "Extraction failed!"
+    }
 
-    $innerFolder = Get-ChildItem $localPath -Directory | Select-Object -First 1
+    $innerFolder = Get-ChildItem $stagingPath -Directory | Select-Object -First 1
     if ($innerFolder) {
+        try {
+            Remove-Item "$localPath\*" -Recurse -Force -ErrorAction Stop
+        }
+        catch {
+            Write-Log "Failed to clear existing installation!" "Error" $logFile
+            Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
+            Remove-Item $stagingPath -Recurse -Force -ErrorAction SilentlyContinue
+            throw "Failed to clear existing installation!"
+        }
+
         Get-ChildItem $innerFolder.FullName -Force | ForEach-Object {
             Move-Item $_.FullName -Destination $localPath -Force
         }
         Remove-Item $innerFolder.FullName -Recurse -Force
     }
+
+    Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
+    Remove-Item $stagingPath -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 # config ScheduledTask to run in $cfg.wallpaper.time that runing the daily_run every day. when its possible, for example, if the copmuter off, when it will on and login. run if computer on battery mode. and so on
@@ -101,6 +120,7 @@ function Set-ScheduledTask {
 
     try {
         Write-Log "try register task" "Info" $logFile
+        Unregister-ScheduledTask -TaskName $cfg.system.taskName -Confirm:$false -ErrorAction SilentlyContinue
         Register-ScheduledTask -TaskName $cfg.system.taskName -Action $action -Trigger @($dailyTrigger, $logonTrigger) -Settings $setting -Principal $principal -Description "Change wallpaper daily and on logon" | Out-Null
         Write-Log "register task succeed!" "Info" $logFile
     }
@@ -121,5 +141,6 @@ try {
     Write-Host "Install success!"
 }
 catch {
-    Write-Host "Install failed!"
+    Write-Host "Install failed: $($_.Exception.Message)"
+    exit 1
 }

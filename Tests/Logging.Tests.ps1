@@ -48,6 +48,7 @@ Describe "Logging Module" {
         It "Should return immediately and do nothing if LogFile is null or empty" {
             # We verify no errors occur and no files are created in the current dir
             { Write-Log -Message "Silent fail" -LogFile "" } | Should -Not -Throw
+            { Write-Log -Message "Silent fail" -LogFile $null } | Should -Not -Throw
         }
 
         It "Should format the timestamp correctly" {

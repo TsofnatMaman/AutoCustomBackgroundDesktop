@@ -37,7 +37,9 @@ function Write-Log {
         $line = "[{0}] [{1}] {2}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $Level, $Message
         Add-Content -Path $LogFile -Value $line
     }
-    catch {}
+    catch {
+        Write-Warning "Failed to write to log file $LogFile : $($_.Exception.Message)"
+    }
 }
 
 Export-ModuleMember -Function Initialize-Logging, Write-Log
