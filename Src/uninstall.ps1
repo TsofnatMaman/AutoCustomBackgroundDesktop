@@ -3,11 +3,26 @@ $ConfirmPreference = 'None'
 $localPath = Join-Path $env:APPDATA ".wallpaper_countdown"
 
 function Write-Log {
-    param(
-        [string]$Message
-    )
-
+    param([string]$Message)
     Write-Host "[UNINSTALL] $Message"
+}
+
+function Set-BlackWallpaper {
+    Set-ItemProperty "HKCU:\Control Panel\Colors" -Name Background -Value "0 0 0"
+
+    Set-ItemProperty "HKCU:\Control Panel\Desktop" -Name Wallpaper -Value ""
+
+    RUNDLL32.EXE user32.dll,UpdatePerUserSystemParameters
+
+    Add-Type @"
+using System.Runtime.InteropServices;
+public class Native {
+    [DllImport("user32.dll")]
+    public static extern bool SystemParametersInfo(int uAction,int uParam,string lpvParam,int fuWinIni);
+}
+"@
+
+    [Native]::SystemParametersInfo(20, 0, $null, 3) | Out-Null
 }
 
 function Unregister-Task {
@@ -51,6 +66,8 @@ function Remove-Folder {
 }
 
 Write-Log "Starting uninstall..."
+
+Set-BlackWallpaper
 
 Unregister-Task
 Remove-Folder
