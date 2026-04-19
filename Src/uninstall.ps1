@@ -22,8 +22,14 @@ function Unregister-Task {
             $taskName = $cfg.system.taskName
         }
 
-        Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction Stop
-        Write-Log "Scheduled Task $taskName removed"
+        $task = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+        if ($task) {
+            Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction Stop
+            Write-Log "Scheduled Task $taskName removed"
+        }
+        else {
+            Write-Log "Scheduled Task $taskName not found, skipping"
+        }
     }
     catch {
         Write-Log "Failed to remove scheduled task: $($_.Exception.Message)"

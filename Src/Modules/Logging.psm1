@@ -35,7 +35,7 @@ function Write-Log {
         }
 
         $line = "[{0}] [{1}] {2}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $Level, $Message
-        Add-Content -Path $LogFile -Value $line
+        Add-Content -Path $LogFile -Value $line -Encoding UTF8
     }
     catch {
         Write-Warning "Failed to write to log file $LogFile : $($_.Exception.Message)"
