@@ -2,6 +2,11 @@ $ConfirmPreference = 'None'
 
 $localPath = Join-Path $env:APPDATA ".wallpaper_countdown"
 
+$systemModulePath = Join-Path $localPath "Src\Modules\System.psm1"
+if (Test-Path $systemModulePath) {
+    Import-Module $systemModulePath -Force
+}
+
 function Write-Log {
     param(
         [string]$Message
@@ -53,20 +58,13 @@ function Restore-OriginalWallpaper {
     }
 
     try {
-        $code = @"
-        using System;
-        using System.Runtime.InteropServices;
-        public class WallpaperRestorer {
-            [DllImport("user32.dll", CharSet = CharSet.Auto)]
-            public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
+        $result = Set-Wallpaper -Path $originalPath
+        if ($result) {
+            Write-Log "Wallpaper restored to: $originalPath"
         }
-"@
-        if (-not ("WallpaperRestorer" -as [type])) {
-            Add-Type -TypeDefinition $code -ErrorAction SilentlyContinue
+        else {
+            Write-Log "Failed to restore wallpaper: Set-Wallpaper returned false for path '$originalPath'"
         }
-
-        [WallpaperRestorer]::SystemParametersInfo(0x0014, 0, $originalPath, 0x01 -bor 0x02) | Out-Null
-        Write-Log "Wallpaper restored to: $originalPath"
     }
     catch {
         Write-Log "Failed to restore wallpaper: $($_.Exception.Message)"
