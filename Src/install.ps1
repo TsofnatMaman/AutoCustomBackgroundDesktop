@@ -134,10 +134,10 @@ New-Item -ItemType Directory -Path $localPath -Force | Out-Null
 Write-Log "Start installing..." "Info" $logFile
 
 try {
-    Get-Repo *> $null
-    Set-ScheduledTask *> $null
-    # run first daily_run 
-    & "$env:APPDATA/.wallpaper_countdown/Src/daily_run.ps1" *> $null
+    Get-Repo > $null
+    Set-ScheduledTask > $null
+    # run first daily_run
+    & "$env:APPDATA/.wallpaper_countdown/Src/daily_run.ps1" > $null
     Write-Host "Install success!"
 }
 catch {
