@@ -15,10 +15,8 @@ Describe "Set-Wallpaper" {
             
             $result | Should -Be $false
             
-            # Use Assert-MockCalled - this is the Pester 5 standard
-            # We explicitly target the System module to find the mock
-            Assert-MockCalled Write-Log -ModuleName System -ParameterFilter { 
-                $Message -match "not found" 
+            Should -Invoke Write-Log -ModuleName System -ParameterFilter {
+                $Message -match "not found"
             } -Times 1 -Exactly
         }
     }
@@ -34,7 +32,7 @@ Describe "Set-Wallpaper" {
             $result | Should -Be $true
 
             # Verify the success log was captured
-            Assert-MockCalled Write-Log -ModuleName System -ParameterFilter {
+            Should -Invoke Write-Log -ModuleName System -ParameterFilter {
                 $Message -match "successfully"
             } -Times 1 -Exactly
         }
