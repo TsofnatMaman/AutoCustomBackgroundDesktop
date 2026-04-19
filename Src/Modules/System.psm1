@@ -43,13 +43,24 @@ function Set-Wallpaper {
 }
 
 function Get-CurrentWallpaperPath {
+    # Try the standard registry key first
     try {
         $path = (Get-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name Wallpaper -ErrorAction Stop).Wallpaper
-        return $path
+        if (-not [string]::IsNullOrWhiteSpace($path) -and (Test-Path $path)) {
+            return $path
+        }
     }
-    catch {
-        return ""
+    catch { }
+
+    # Registry value is empty or points to a missing file.
+    # This happens with Windows Spotlight and some system/solid-color wallpapers.
+    # Fall back to the TranscodedWallpaper cache which Windows keeps up to date.
+    $transcodedPath = Join-Path $env:APPDATA "Microsoft\Windows\Themes\TranscodedWallpaper"
+    if (Test-Path $transcodedPath) {
+        return $transcodedPath
     }
+
+    return ""
 }
 
 function Backup-Wallpaper {
