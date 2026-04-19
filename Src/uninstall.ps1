@@ -43,20 +43,27 @@ function Unregister-Task {
 }
 
 function Restore-OriginalWallpaper {
-    $backupFile = Join-Path $localPath "backup\original_wallpaper.json"
+    $backupFile = Join-Path $localPath "backup\original_wallpaper.txt"
 
     if (-not (Test-Path $backupFile)) {
         Write-Log "No wallpaper backup found, skipping restore"
         return
     }
 
+    $originalPath = (Get-Content $backupFile -Raw).Trim()
+
+    if ([string]::IsNullOrWhiteSpace($originalPath)) {
+        Write-Log "Wallpaper backup is empty, skipping restore"
+        return
+    }
+
     try {
-        $result = Restore-Wallpaper -BackupFile $backupFile
+        $result = Set-Wallpaper -Path $originalPath
         if ($result) {
-            Write-Log "Wallpaper restored successfully"
+            Write-Log "Wallpaper restored to: $originalPath"
         }
         else {
-            Write-Log "Failed to restore wallpaper (Restore-Wallpaper returned false)"
+            Write-Log "Failed to restore wallpaper: Set-Wallpaper returned false for path '$originalPath'"
         }
     }
     catch {

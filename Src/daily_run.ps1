@@ -8,11 +8,11 @@ Import-Module "$PSScriptRoot/Modules/System.psm1"
 function DailyRun {
     $appDir = Join-Path "$env:APPDATA" ".wallpaper_countdown"
 
-    $logFolder = Join-Path $appDir "cache"
+    $logFolder = Join-Path $appDir "logs"
     $logFile = Initialize-Logging -LogFolder $logFolder
 
     # ====== Poll Config ======
-    $configPath = Join-Path $appDir "Src\config.json"
+    $configPath = Join-Path $appDir "Src/config.json"
     $cfg = Get-Config -ConfigFilePath $configPath -LogFile $logFile
     $null = Poll-RemoteConfig -cfg $cfg -Path $configPath -LogFile $logFile
     $cfg = Get-Config -ConfigFilePath $configPath -LogFile $logFile
@@ -33,7 +33,7 @@ function DailyRun {
     }
     
     # ===== Backup original wallpaper (only once, before first modification) =====
-    $backupFile = Join-Path $appDir "backup\original_wallpaper.json"
+    $backupFile = Join-Path $appDir "backup\original_wallpaper.txt"
     if (-not (Test-Path $backupFile)) {
         $null = Backup-Wallpaper -BackupFile $backupFile -LogFile $logFile
     }
