@@ -35,7 +35,25 @@ function DailyRun {
     # ===== Backup original wallpaper (only once, before first modification) =====
     $backupFile = Join-Path $appDir "backup\original_wallpaper.txt"
     if (-not (Test-Path $backupFile)) {
-        $null = Backup-Wallpaper -BackupFile $backupFile -LogFile $logFile
+        $currentWallpaper = ""
+        try {
+            $regPath = (Get-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name Wallpaper -ErrorAction Stop).Wallpaper
+            if (-not [string]::IsNullOrWhiteSpace($regPath) -and (Test-Path $regPath)) {
+                $currentWallpaper = $regPath
+            }
+        } catch { }
+
+        if ([string]::IsNullOrWhiteSpace($currentWallpaper)) {
+            $transcodedPath = Join-Path $env:APPDATA "Microsoft\Windows\Themes\TranscodedWallpaper"
+            if (Test-Path $transcodedPath) { $currentWallpaper = $transcodedPath }
+        }
+
+        Write-Log -Message "Backing up current wallpaper: '$currentWallpaper'" -Level "Info" -LogFile $logFile
+        $backupDir = Split-Path $backupFile -Parent
+        if ($backupDir -and -not (Test-Path $backupDir)) {
+            New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
+        }
+        Set-Content -Path $backupFile -Value $currentWallpaper -Encoding UTF8
     }
 
     $textDaysRemain = Get-DaysText -cfg $cfg
