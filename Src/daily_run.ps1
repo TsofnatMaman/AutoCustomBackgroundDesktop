@@ -26,8 +26,8 @@ function DailyRun {
 
     # if days ramain equals 0 - uninstall
     $dayRemain = Get-DaysRemaining $cfg
-    if($dayRemain -eq 0) {
-        Write-Host "The program is finished, to uninstall - run the file %APPDATA%\.wallpaper_countdown\Src\uninstall We invite you to use the program again - github.com/TsofnatMaman/AutoCustomBackgroundDesktop"
+    if($dayRemain -le 0) {
+        Write-Host "The program is finished, to uninstall - copy to another folder and run the file %APPDATA%\.wallpaper_countdown\Src\uninstall.exe We invite you to use the program again - github.com/TsofnatMaman/AutoCustomBackgroundDesktop"
         # Start-Process powershell -ArgumentList "-File `"$appDir\Src\uninstall.ps1`"" -WindowStyle Hidden
         return
     }
