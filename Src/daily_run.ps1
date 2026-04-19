@@ -33,7 +33,7 @@ function DailyRun {
     }
     
     # ===== Backup original wallpaper (only once, before first modification) =====
-    $backupFile = Join-Path $appDir "backup\original_wallpaper.txt"
+    $backupFile = Join-Path $appDir "backup\original_wallpaper.json"
     if (-not (Test-Path $backupFile)) {
         $null = Backup-Wallpaper -BackupFile $backupFile -LogFile $logFile
     }
