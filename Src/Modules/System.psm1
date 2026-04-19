@@ -42,4 +42,60 @@ function Set-Wallpaper {
     }
 }
 
-Export-ModuleMember -Function Set-Wallpaper
+function Get-CurrentWallpaperPath {
+    try {
+        $path = (Get-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name Wallpaper -ErrorAction Stop).Wallpaper
+        return $path
+    }
+    catch {
+        return ""
+    }
+}
+
+function Backup-Wallpaper {
+    param(
+        [string]$BackupFile,
+        [string]$LogFile
+    )
+
+    $currentPath = Get-CurrentWallpaperPath
+    Write-Log -Message "Backing up current wallpaper path: '$currentPath'" -Level "Info" -LogFile $LogFile
+
+    try {
+        $dir = Split-Path $BackupFile -Parent
+        if ($dir -and -not (Test-Path $dir)) {
+            New-Item -ItemType Directory -Path $dir -Force | Out-Null
+        }
+        Set-Content -Path $BackupFile -Value $currentPath -Encoding UTF8
+        Write-Log -Message "Wallpaper backup saved to: $BackupFile" -Level "Info" -LogFile $LogFile
+        return $true
+    }
+    catch {
+        Write-Log -Message "Failed to save wallpaper backup: $($_.Exception.Message)" -Level "Error" -LogFile $LogFile
+        return $false
+    }
+}
+
+function Restore-Wallpaper {
+    param(
+        [string]$BackupFile,
+        [string]$LogFile
+    )
+
+    if (-not (Test-Path $BackupFile)) {
+        Write-Log -Message "Wallpaper backup file not found: $BackupFile" -Level "Warning" -LogFile $LogFile
+        return $false
+    }
+
+    $originalPath = (Get-Content $BackupFile -Raw).Trim()
+    Write-Log -Message "Restoring original wallpaper from backup: '$originalPath'" -Level "Info" -LogFile $LogFile
+
+    if ([string]::IsNullOrWhiteSpace($originalPath)) {
+        Write-Log -Message "Backup file is empty; nothing to restore" -Level "Warning" -LogFile $LogFile
+        return $false
+    }
+
+    return Set-Wallpaper -Path $originalPath -LogFile $LogFile
+}
+
+Export-ModuleMember -Function Set-Wallpaper, Get-CurrentWallpaperPath, Backup-Wallpaper, Restore-Wallpaper

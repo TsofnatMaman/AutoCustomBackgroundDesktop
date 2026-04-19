@@ -32,6 +32,12 @@ function DailyRun {
         return
     }
     
+    # ===== Backup original wallpaper (only once, before first modification) =====
+    $backupFile = Join-Path $appDir "backup\original_wallpaper.txt"
+    if (-not (Test-Path $backupFile)) {
+        $null = Backup-Wallpaper -BackupFile $backupFile -LogFile $logFile
+    }
+
     $textDaysRemain = Get-DaysText -cfg $cfg
     Export-CountdownImage -Base $imgPathDefault -Output $outImgDefault -Text $textDaysRemain -LogFile $logFile
     Set-Wallpaper -Path $outImgDefault -LogFile $logFile
