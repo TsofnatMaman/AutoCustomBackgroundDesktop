@@ -15,8 +15,10 @@ Describe "Set-Wallpaper" {
             
             $result | Should -Be $false
             
-            Should -Invoke Write-Log -ModuleName System -ParameterFilter {
-                $Message -match "not found"
+            # Use Assert-MockCalled - this is the Pester 5 standard
+            # We explicitly target the System module to find the mock
+            Assert-MockCalled Write-Log -ModuleName System -ParameterFilter { 
+                $Message -match "not found" 
             } -Times 1 -Exactly
         }
     }
@@ -32,9 +34,61 @@ Describe "Set-Wallpaper" {
             $result | Should -Be $true
 
             # Verify the success log was captured
-            Should -Invoke Write-Log -ModuleName System -ParameterFilter {
+            Assert-MockCalled Write-Log -ModuleName System -ParameterFilter {
                 $Message -match "successfully"
             } -Times 1 -Exactly
+        }
+    }
+}
+
+Describe "Get-CurrentWallpaperPath" {
+    BeforeAll {
+        Mock Write-Log { } -ModuleName System
+    }
+
+    It "Returns the registry wallpaper path when it is set" {
+        Mock Get-ItemProperty {
+            return [PSCustomObject]@{ Wallpaper = "C:\Windows\Web\Wallpaper\Windows\img0.jpg" }
+        } -ModuleName System -ParameterFilter { $Name -eq "Wallpaper" }
+
+        $result = Get-CurrentWallpaperPath
+        $result | Should -Be "C:\Windows\Web\Wallpaper\Windows\img0.jpg"
+    }
+
+    It "Returns empty string and logs a warning when the wallpaper path is empty (solid color)" {
+        Mock Get-ItemProperty {
+            if ($Name -eq "Wallpaper") { return [PSCustomObject]@{ Wallpaper = "" } }
+            throw "not found"
+        } -ModuleName System
+
+        $result = Get-CurrentWallpaperPath -LogFile "TestDrive:\dummy.log"
+        $result | Should -Be ""
+        Should -Invoke Write-Log -ModuleName System -ParameterFilter {
+            $Level -eq "Warning" -and $Message -match "solid color|system default"
+        }
+    }
+
+    It "Returns empty string and logs a Spotlight warning when Spotlight is active" {
+        Mock Get-ItemProperty {
+            if ($Name -eq "Wallpaper") { return [PSCustomObject]@{ Wallpaper = "" } }
+            if ($Name -eq "SubscribedContent-338388Enabled") { return [PSCustomObject]@{ "SubscribedContent-338388Enabled" = 1 } }
+            throw "not found"
+        } -ModuleName System
+
+        $result = Get-CurrentWallpaperPath -LogFile "TestDrive:\dummy.log"
+        $result | Should -Be ""
+        Should -Invoke Write-Log -ModuleName System -ParameterFilter {
+            $Level -eq "Warning" -and $Message -match "Spotlight"
+        }
+    }
+
+    It "Returns empty string and logs a warning when the registry read fails" {
+        Mock Get-ItemProperty { throw "Access denied" } -ModuleName System -ParameterFilter { $Name -eq "Wallpaper" }
+
+        $result = Get-CurrentWallpaperPath -LogFile "TestDrive:\dummy.log"
+        $result | Should -Be ""
+        Should -Invoke Write-Log -ModuleName System -ParameterFilter {
+            $Level -eq "Warning" -and $Message -match "Failed to read"
         }
     }
 }

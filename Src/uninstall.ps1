@@ -10,6 +10,11 @@ function Write-Log {
     Write-Host "[UNINSTALL] $Message"
 }
 
+$systemModulePath = Join-Path $localPath "Src\Modules\System.psm1"
+if (Test-Path $systemModulePath) {
+    Import-Module $systemModulePath -Force -ErrorAction SilentlyContinue
+}
+
 function Unregister-Task {
     try {
         $configPath = Join-Path $localPath "Src\config.json"
@@ -40,36 +45,17 @@ function Unregister-Task {
 function Restore-OriginalWallpaper {
     $backupFile = Join-Path $localPath "backup\original_wallpaper.txt"
 
-    if (-not (Test-Path $backupFile)) {
-        Write-Log "No wallpaper backup found, skipping restore"
-        return
-    }
-
-    $originalPath = (Get-Content $backupFile -Raw).Trim()
-
-    if ([string]::IsNullOrWhiteSpace($originalPath)) {
-        Write-Log "Wallpaper backup is empty, skipping restore"
-        return
-    }
-
-    try {
-        $code = @"
-        using System;
-        using System.Runtime.InteropServices;
-        public class WallpaperRestorer {
-            [DllImport("user32.dll", CharSet = CharSet.Auto)]
-            public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
+    if (Get-Command -Name Restore-Wallpaper -ErrorAction SilentlyContinue) {
+        $result = Restore-Wallpaper -BackupFile $backupFile
+        if ($result) {
+            Write-Log "Wallpaper restored successfully"
         }
-"@
-        if (-not ("WallpaperRestorer" -as [type])) {
-            Add-Type -TypeDefinition $code -ErrorAction SilentlyContinue
+        else {
+            Write-Log "Wallpaper restore skipped or failed (check backup file or original path)"
         }
-
-        [WallpaperRestorer]::SystemParametersInfo(0x0014, 0, $originalPath, 0x01 -bor 0x02) | Out-Null
-        Write-Log "Wallpaper restored to: $originalPath"
     }
-    catch {
-        Write-Log "Failed to restore wallpaper: $($_.Exception.Message)"
+    else {
+        Write-Log "System module not available; skipping wallpaper restore"
     }
 }
 

@@ -43,11 +43,41 @@ function Set-Wallpaper {
 }
 
 function Get-CurrentWallpaperPath {
+    param(
+        [string]$LogFile
+    )
+
     try {
         $path = (Get-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name Wallpaper -ErrorAction Stop).Wallpaper
-        return $path
+
+        if (-not [string]::IsNullOrWhiteSpace($path)) {
+            return $path
+        }
+
+        # Path is empty — determine why so we can log a useful message
+        $isSpotlight = $false
+        try {
+            $cdmKey = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager"
+            $spotlightValue = (Get-ItemProperty -Path $cdmKey -Name "SubscribedContent-338388Enabled" -ErrorAction Stop)."SubscribedContent-338388Enabled"
+            if ($spotlightValue -eq 1) {
+                $isSpotlight = $true
+            }
+        }
+        catch {
+            # ContentDeliveryManager key or value not present — not Spotlight
+        }
+
+        if ($isSpotlight) {
+            Write-Log -Message "Windows Spotlight is active for the desktop; wallpaper path cannot be captured for restore." -Level "Warning" -LogFile $LogFile
+        }
+        else {
+            Write-Log -Message "Wallpaper registry value is empty (solid color or system default); no file path to back up." -Level "Warning" -LogFile $LogFile
+        }
+
+        return ""
     }
     catch {
+        Write-Log -Message "Failed to read wallpaper registry value: $($_.Exception.Message)" -Level "Warning" -LogFile $LogFile
         return ""
     }
 }
@@ -58,7 +88,7 @@ function Backup-Wallpaper {
         [string]$LogFile
     )
 
-    $currentPath = Get-CurrentWallpaperPath
+    $currentPath = Get-CurrentWallpaperPath -LogFile $LogFile
     Write-Log -Message "Backing up current wallpaper path: '$currentPath'" -Level "Info" -LogFile $LogFile
 
     try {
