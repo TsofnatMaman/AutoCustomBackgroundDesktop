@@ -87,26 +87,4 @@ function Backup-Wallpaper {
     }
 }
 
-function Restore-Wallpaper {
-    param(
-        [string]$BackupFile,
-        [string]$LogFile
-    )
-
-    if (-not (Test-Path $BackupFile)) {
-        Write-Log -Message "Wallpaper backup file not found: $BackupFile" -Level "Warning" -LogFile $LogFile
-        return $false
-    }
-
-    $originalPath = (Get-Content $BackupFile -Raw).Trim()
-    Write-Log -Message "Restoring original wallpaper from backup: '$originalPath'" -Level "Info" -LogFile $LogFile
-
-    if ([string]::IsNullOrWhiteSpace($originalPath)) {
-        Write-Log -Message "Backup file is empty; nothing to restore" -Level "Warning" -LogFile $LogFile
-        return $false
-    }
-
-    return Set-Wallpaper -Path $originalPath -LogFile $LogFile
-}
-
-Export-ModuleMember -Function Set-Wallpaper, Get-CurrentWallpaperPath, Backup-Wallpaper, Restore-Wallpaper
+Export-ModuleMember -Function Set-Wallpaper, Get-CurrentWallpaperPath, Backup-Wallpaper

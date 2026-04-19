@@ -42,35 +42,6 @@ function Unregister-Task {
     }
 }
 
-function Restore-OriginalWallpaper {
-    $backupFile = Join-Path $localPath "backup\original_wallpaper.txt"
-
-    if (-not (Test-Path $backupFile)) {
-        Write-Log "No wallpaper backup found, skipping restore"
-        return
-    }
-
-    $originalPath = (Get-Content $backupFile -Raw).Trim()
-
-    if ([string]::IsNullOrWhiteSpace($originalPath)) {
-        Write-Log "Wallpaper backup is empty, skipping restore"
-        return
-    }
-
-    try {
-        $result = Set-Wallpaper -Path $originalPath
-        if ($result) {
-            Write-Log "Wallpaper restored to: $originalPath"
-        }
-        else {
-            Write-Log "Failed to restore wallpaper: Set-Wallpaper returned false for path '$originalPath'"
-        }
-    }
-    catch {
-        Write-Log "Failed to restore wallpaper: $($_.Exception.Message)"
-    }
-}
-
 function Remove-Folder {
     try {
         if(Test-Path $localPath) {
@@ -87,7 +58,32 @@ function Remove-Folder {
 Write-Log "Starting uninstall..."
 
 Unregister-Task
-Restore-OriginalWallpaper
+
+$backupFile = Join-Path $localPath "backup\original_wallpaper.txt"
+if (-not (Test-Path $backupFile)) {
+    Write-Log "No wallpaper backup found, skipping restore"
+}
+else {
+    $originalPath = (Get-Content $backupFile -Raw).Trim()
+    if ([string]::IsNullOrWhiteSpace($originalPath)) {
+        Write-Log "Wallpaper backup is empty, skipping restore"
+    }
+    else {
+        try {
+            $result = Set-Wallpaper -Path $originalPath
+            if ($result) {
+                Write-Log "Wallpaper restored to: $originalPath"
+            }
+            else {
+                Write-Log "Failed to restore wallpaper: Set-Wallpaper returned false for path '$originalPath'"
+            }
+        }
+        catch {
+            Write-Log "Failed to restore wallpaper: $($_.Exception.Message)"
+        }
+    }
+}
+
 Remove-Folder
 
 Write-Log "Uninstall completed"
