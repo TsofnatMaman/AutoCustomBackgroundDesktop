@@ -1,0 +1,17 @@
+{
+  "system": {
+    "taskName": "ChangeWallpaperEveryDay",
+    "appFolder": ".wallpaper_countdown"
+  },
+  "github": {
+    "username": "TsofnatMaman",
+    "repository": "AutoCustomBackgroundDesktop",
+    "branch": "new_proj",
+    "imagePath": "backgrounds/2.jpg"
+  },
+  "wallpaper": {
+    "targetDate": "2126-04-20",
+    "text": "...עוד {days} ימים",
+    "time": "00:30"
+  }
+}
