@@ -6,7 +6,7 @@ function Get-DaysRemaining {
     $logFile = $null
 
     if (-not $cfg) {
-        Write-Log -Message "cconfig param not found or null." -Level "Warning" -LogFile $logFile
+        Write-Log -Message "config param not found or null." -Level "Warning" -LogFile $logFile
         throw "config param not found or null."
     }
 
@@ -16,7 +16,7 @@ function Get-DaysRemaining {
     $targetDate = [datetime]::MinValue
 
     if (-not [datetime]::TryParse($targetDateValue, [ref]$targetDate)) {
-        Write-Log -Message "date $targetDateValue invaid" -Level "Warning" -LogFile $logFile
+        Write-Log -Message "date $targetDateValue invalid" -Level "Warning" -LogFile $logFile
         throw "Invalid wallpaper.targetDate value: '$targetDateValue'"
     }
 

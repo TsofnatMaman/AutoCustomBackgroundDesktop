@@ -11,12 +11,12 @@ Describe "Get-Config" {
 
     Context "Invalid Inputs" {
         It "Throws an error when the path is null or empty" {
-            { Get-Config -ConfigFilePath "" } | Should -Throw "Config File Path () not provider or not exist."
+            { Get-Config -ConfigFilePath "" } | Should -Throw "Config File Path () not provided or does not exist."
         }
 
         It "Throws an error when the file does not exist" {
             $NonExistentPath = "C:\ThisFileDoesNotExist.json"
-            { Get-Config -ConfigFilePath $NonExistentPath } | Should -Throw "Config File Path ($NonExistentPath) not provider or not exist."
+            { Get-Config -ConfigFilePath $NonExistentPath } | Should -Throw "Config File Path ($NonExistentPath) not provided or does not exist."
         }
     }
 

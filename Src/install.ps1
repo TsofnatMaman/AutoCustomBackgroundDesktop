@@ -86,7 +86,7 @@ function Get-Repo {
     Remove-Item $stagingPath -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-# config ScheduledTask to run in $cfg.wallpaper.time that runing the daily_run every day. when its possible, for example, if the copmuter off, when it will on and login. run if computer on battery mode. and so on
+# config ScheduledTask to run in $cfg.wallpaper.time that runs the daily_run every day. when possible, for example, if the computer is off, it will run when it turns on and the user logs in. also runs on battery mode.
 function Set-ScheduledTask {
     Import-Module "$env:APPDATA/.wallpaper_countdown/Src/Modules/Config.psm1" -WarningAction SilentlyContinue
     $configFilePath = "$env:APPDATA/.wallpaper_countdown/Src/config.json"
