@@ -1,4 +1,4 @@
-$githubUsername = "TsofnatMaman"
+﻿$githubUsername = "TsofnatMaman"
 $githubRepoName = "AutoCustomBackgroundDesktop"
 $githubBranchName = "main"
 
