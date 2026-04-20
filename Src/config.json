@@ -1,10 +1,10 @@
-{
+﻿{
   "system": {
     "taskName": "ChangeWallpaperEveryDay",
     "appFolder": ".wallpaper_countdown"
   },
   "github": {
-    "username": "TsofnatMaman",
+    "username": "Tsofnat",
     "repository": "AutoCustomBackgroundDesktop",
     "branch": "main",
     "imagePath": "backgrounds/2.jpg"
