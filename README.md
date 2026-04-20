@@ -32,7 +32,7 @@ Automatically sets your Windows desktop wallpaper to a base image with a **count
 ## Installation
 
 1. Fork this repository and push your customizations (see [Configuration](#configuration) below).
-2. Download the latest `install.exe` from [Releases](../../releases), or build it yourself (see [Build EXE](#build-exe)).
+2. build `install.exe` (see [Build EXE](#build-exe)).
 3. Run `install.exe` as Administrator.
 
 The installer will:
@@ -70,9 +70,9 @@ Edit `Src/config.json` before pushing to GitHub (the installer will pick it up a
 |---|---|
 | `system.taskName` | Name of the Windows Scheduled Task. |
 | `system.appFolder` | Folder name under `%APPDATA%` used for local storage. |
-| `github.username` | Your GitHub username (owner of the fork). |
-| `github.repository` | Repository name. |
-| `github.branch` | Branch to pull config and image from. |
+| `github.username` | Your GitHub username (owner of the fork). *Automatically updates when pushed* |
+| `github.repository` | Repository name. *Automatically updates when pushed* |
+| `github.branch` | Branch to pull config and image from. *Automatically updates when pushed*|
 | `github.imagePath` | Relative path to the base wallpaper image in the repo. **Changes take effect on the next daily run.** |
 | `wallpaper.targetDate` | The target countdown date (`YYYY-MM-DD`). |
 | `wallpaper.text` | Text rendered on the wallpaper. Use `{days}` as a placeholder for the day count. |
