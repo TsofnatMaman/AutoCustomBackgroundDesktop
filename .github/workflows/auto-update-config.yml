@@ -1,0 +1,153 @@
+name: Auto Update Config and Install
+
+on:
+  push:
+    branches:
+      - '**'
+
+jobs:
+  update-files:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Setup Git Config
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+      
+      - name: Extract Git Info
+        id: git-info
+        run: |
+          # Get current branch name (handle detached HEAD)
+          BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD)
+          if [ "$BRANCH_NAME" = "HEAD" ]; then
+            BRANCH_NAME=$(git describe --contains --all HEAD | sed 's/^remotes\/origin\///')
+          fi
+          
+          # Get repo name from GITHUB_REPOSITORY
+          REPO_NAME=$(echo "${{ github.repository }}" | cut -d'/' -f2)
+          
+          # Get username
+          USERNAME="${{ github.actor }}"
+          
+          echo "branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          echo "repo=$REPO_NAME" >> $GITHUB_OUTPUT
+          echo "username=$USERNAME" >> $GITHUB_OUTPUT
+          
+          echo "Current branch: $BRANCH_NAME"
+          echo "Current repo: $REPO_NAME"
+          echo "Current username: $USERNAME"
+      
+      - name: Read Current Config
+        id: current-config
+        run: |
+          if [ -f "Src/config.json" ]; then
+            USERNAME=$(jq -r '.github.username' Src/config.json)
+            REPOSITORY=$(jq -r '.github.repository' Src/config.json)
+            BRANCH=$(jq -r '.github.branch' Src/config.json)
+            
+            echo "username=$USERNAME" >> $GITHUB_OUTPUT
+            echo "repository=$REPOSITORY" >> $GITHUB_OUTPUT
+            echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Update config.json if Needed
+        id: update-config
+        run: |
+          NEEDS_UPDATE=false
+          
+          CURRENT_USERNAME="${{ steps.current-config.outputs.username }}"
+          CURRENT_REPOSITORY="${{ steps.current-config.outputs.repository }}"
+          CURRENT_BRANCH="${{ steps.current-config.outputs.branch }}"
+          
+          NEW_USERNAME="${{ steps.git-info.outputs.username }}"
+          NEW_REPOSITORY="${{ steps.git-info.outputs.repo }}"
+          NEW_BRANCH="${{ steps.git-info.outputs.branch }}"
+          
+          if [ "$CURRENT_USERNAME" != "$NEW_USERNAME" ] || \
+             [ "$CURRENT_REPOSITORY" != "$NEW_REPOSITORY" ] || \
+             [ "$CURRENT_BRANCH" != "$NEW_BRANCH" ]; then
+            NEEDS_UPDATE=true
+          fi
+          
+          if [ "$NEEDS_UPDATE" = true ]; then
+            echo "Config needs update"
+            jq ".github.username=\"$NEW_USERNAME\" | .github.repository=\"$NEW_REPOSITORY\" | .github.branch=\"$NEW_BRANCH\"" \
+              Src/config.json > Src/config.json.tmp && mv Src/config.json.tmp Src/config.json
+            echo "config-updated=true" >> $GITHUB_OUTPUT
+          else
+            echo "Config is already up to date"
+            echo "config-updated=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Update install.ps1 if Needed
+        id: update-install
+        run: |
+          NEEDS_UPDATE=false
+          
+          # Extract current values from install.ps1
+          CURRENT_USERNAME=$(grep '^\$githubUsername = ' Src/install.ps1 | sed 's/.*"\([^"]*\)".*/\1/')
+          CURRENT_REPO=$(grep '^\$githubRepoName = ' Src/install.ps1 | sed 's/.*"\([^"]*\)".*/\1/')
+          CURRENT_BRANCH=$(grep '^\$githubBranchName = ' Src/install.ps1 | sed 's/.*"\([^"]*\)".*/\1/')
+          
+          NEW_USERNAME="${{ steps.git-info.outputs.username }}"
+          NEW_REPOSITORY="${{ steps.git-info.outputs.repo }}"
+          NEW_BRANCH="${{ steps.git-info.outputs.branch }}"
+          
+          if [ "$CURRENT_USERNAME" != "$NEW_USERNAME" ] || \
+             [ "$CURRENT_REPO" != "$NEW_REPOSITORY" ] || \
+             [ "$CURRENT_BRANCH" != "$NEW_BRANCH" ]; then
+            NEEDS_UPDATE=true
+          fi
+          
+          if [ "$NEEDS_UPDATE" = true ]; then
+            echo "install.ps1 needs update"
+            sed -i "s/^\$githubUsername = .*/\$githubUsername = \"$NEW_USERNAME\"/" Src/install.ps1
+            sed -i "s/^\$githubRepoName = .*/\$githubRepoName = \"$NEW_REPOSITORY\"/" Src/install.ps1
+            sed -i "s/^\$githubBranchName = .*/\$githubBranchName = \"$NEW_BRANCH\"/" Src/install.ps1
+            echo "install-updated=true" >> $GITHUB_OUTPUT
+          else
+            echo "install.ps1 is already up to date"
+            echo "install-updated=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Check for Changes
+        id: check-changes
+        run: |
+          if git diff --quiet; then
+            echo "has-changes=false" >> $GITHUB_OUTPUT
+            echo "No changes detected"
+          else
+            echo "has-changes=true" >> $GITHUB_OUTPUT
+            echo "Changes detected:"
+            git diff --name-only
+          fi
+      
+      - name: Commit and Push Changes
+        if: steps.check-changes.outputs.has-changes == 'true'
+        run: |
+          git add Src/config.json Src/install.ps1
+          git commit -m "🤖 Auto-update config and install files based on current GitHub context
+          
+          Updated by: ${{ steps.git-info.outputs.username }}
+          Repository: ${{ steps.git-info.outputs.repo }}
+          Branch: ${{ steps.git-info.outputs.branch }}"
+          git push
+      
+      - name: Summary
+        run: |
+          echo "## Update Summary"
+          echo "Username: ${{ steps.git-info.outputs.username }}"
+          echo "Repository: ${{ steps.git-info.outputs.repo }}"
+          echo "Branch: ${{ steps.git-info.outputs.branch }}"
+          echo ""
+          echo "Config Updated: ${{ steps.update-config.outputs.config-updated }}"
+          echo "Install Updated: ${{ steps.update-install.outputs.install-updated }}"
+          echo "Changes Committed: ${{ steps.check-changes.outputs.has-changes }}"
