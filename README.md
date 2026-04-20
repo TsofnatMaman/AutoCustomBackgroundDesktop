@@ -73,7 +73,7 @@ Edit `Src/config.json` before pushing to GitHub (the installer will pick it up a
 | `github.username` | Your GitHub username (owner of the fork). |
 | `github.repository` | Repository name. |
 | `github.branch` | Branch to pull config and image from. |
-| `github.imagePath` | Relative path to the base wallpaper image in the repo. |
+| `github.imagePath` | Relative path to the base wallpaper image in the repo. **Changes take effect on the next daily run.** |
 | `wallpaper.targetDate` | The target countdown date (`YYYY-MM-DD`). |
 | `wallpaper.text` | Text rendered on the wallpaper. Use `{days}` as a placeholder for the day count. |
 | `wallpaper.time` | Daily trigger time for the Scheduled Task (`HH:mm`). |
