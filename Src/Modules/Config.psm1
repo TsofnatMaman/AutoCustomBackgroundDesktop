@@ -8,8 +8,8 @@ function Get-Config {
     )
 
     if([string]::IsNullOrWhiteSpace($ConfigFilePath) -or -not (Test-Path $ConfigFilePath)) {
-        Write-Log -Message "Config File Path ($ConfigFilePath) not provider or not exist." -Level "Warning" -LogFile $LogFile
-        throw "Config File Path ($ConfigFilePath) not provider or not exist."
+        Write-Log -Message "Config File Path ($ConfigFilePath) not provided or does not exist." -Level "Warning" -LogFile $LogFile
+        throw "Config File Path ($ConfigFilePath) not provided or does not exist."
     }
 
     try {
