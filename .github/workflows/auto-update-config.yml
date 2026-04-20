@@ -79,8 +79,12 @@ jobs:
           
           if [ "$NEEDS_UPDATE" = true ]; then
             echo "Config needs update"
+            # Create updated JSON without BOM
             jq ".github.username=\"$NEW_USERNAME\" | .github.repository=\"$NEW_REPOSITORY\" | .github.branch=\"$NEW_BRANCH\"" \
-              Src/config.json > Src/config.json.tmp && mv Src/config.json.tmp Src/config.json
+              Src/config.json > Src/config.json.tmp
+            # Add UTF-8 BOM back
+            printf '\xef\xbb\xbf' | cat - Src/config.json.tmp > Src/config.json
+            rm Src/config.json.tmp
             echo "config-updated=true" >> $GITHUB_OUTPUT
           else
             echo "Config is already up to date"
@@ -109,9 +113,15 @@ jobs:
           
           if [ "$NEEDS_UPDATE" = true ]; then
             echo "install.ps1 needs update"
-            sed -i "s/^\$githubUsername = .*/\$githubUsername = \"$NEW_USERNAME\"/" Src/install.ps1
-            sed -i "s/^\$githubRepoName = .*/\$githubRepoName = \"$NEW_REPOSITORY\"/" Src/install.ps1
-            sed -i "s/^\$githubBranchName = .*/\$githubBranchName = \"$NEW_BRANCH\"/" Src/install.ps1
+            # Skip BOM if present when reading
+            tail -c +4 Src/install.ps1 > Src/install.ps1.tmp || cp Src/install.ps1 Src/install.ps1.tmp
+            # Apply updates
+            sed -i "s/^\$githubUsername = .*/\$githubUsername = \"$NEW_USERNAME\"/" Src/install.ps1.tmp
+            sed -i "s/^\$githubRepoName = .*/\$githubRepoName = \"$NEW_REPOSITORY\"/" Src/install.ps1.tmp
+            sed -i "s/^\$githubBranchName = .*/\$githubBranchName = \"$NEW_BRANCH\"/" Src/install.ps1.tmp
+            # Add UTF-8 BOM back
+            printf '\xef\xbb\xbf' | cat - Src/install.ps1.tmp > Src/install.ps1
+            rm Src/install.ps1.tmp
             echo "install-updated=true" >> $GITHUB_OUTPUT
           else
             echo "install.ps1 is already up to date"
