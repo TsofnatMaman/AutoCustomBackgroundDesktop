@@ -135,10 +135,10 @@ jobs:
         run: |
           git add Src/config.json Src/install.ps1
           git commit -m "🤖 Auto-update config and install files based on current GitHub context
-
-Updated by: ${{ steps.git-info.outputs.username }}
-Repository: ${{ steps.git-info.outputs.repo }}
-Branch: ${{ steps.git-info.outputs.branch }}"
+          
+          Updated by: ${{ steps.git-info.outputs.username }}
+          Repository: ${{ steps.git-info.outputs.repo }}
+          Branch: ${{ steps.git-info.outputs.branch }}"
           git push
       
       - name: Summary
