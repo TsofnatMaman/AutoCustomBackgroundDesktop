@@ -32,8 +32,9 @@ Automatically sets your Windows desktop wallpaper to a base image with a **count
 ## Installation
 
 1. Fork this repository and push your customizations (see [Configuration](#configuration) below).
-2. build `install.exe` (see [Build EXE](#build-exe)).
-3. Run `install.exe` as Administrator.
+2. Push a commit with a change in `Src/install.ps1` to trigger the EXE build workflow (see [Build EXE](#build-exe)).
+3. Download or use `release/install.exe`.
+4. Run `install.exe` as Administrator.
 
 The installer will:
 - Download the repository ZIP from GitHub into `%APPDATA%\.wallpaper_countdown`.
@@ -78,7 +79,9 @@ Edit `Src/config.json` before pushing to GitHub (the installer will pick it up a
 | `wallpaper.text` | Text rendered on the wallpaper. Use `{days}` as a placeholder for the day count. |
 | `wallpaper.time` | Daily trigger time for the Scheduled Task (`HH:mm`). |
 
-> **Note:** A GitHub Actions workflow (`.github/workflows/auto-update-config.yml`) automatically keeps `Src/config.json` and `Src/install.ps1` in sync with the current branch and repository owner whenever you push.
+> **Note:** GitHub Actions workflows automatically run on push:
+> - `.github/workflows/auto-update-config.yml` keeps `Src/config.json` and `Src/install.ps1` aligned with the current GitHub context.
+> - `.github/workflows/build-exe.yml` builds `install.exe` and `uninstall.exe`, then updates `release/*.exe`.
 
 ---
 
@@ -156,7 +159,14 @@ reportgenerator `
 
 ### Build EXE
 
-Install the [ps2exe](https://github.com/MScholtes/PS2EXE) module, then:
+EXE files are built automatically on `push` events that modify `Src/install.ps1` by `.github/workflows/build-exe.yml`.
+
+The workflow:
+- builds `install.exe` and `uninstall.exe` on `windows-latest`.
+- commits them into `release/install.exe` and `release/uninstall.exe`.
+- uploads them as GitHub Actions artifacts (`exes-<branch>-<sha>`).
+
+If you want to build locally, install the [ps2exe](https://github.com/MScholtes/PS2EXE) module, then:
 
 ```powershell
 Invoke-ps2exe .\Src\install.ps1 .\install.exe `
