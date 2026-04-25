@@ -1,0 +1,80 @@
+name: Build EXE
+
+on:
+  push:
+    branches:
+      - "**"
+    paths-ignore:
+      - "release/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-exe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    if: github.actor != 'github-actions[bot]'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install ps2exe module
+        shell: pwsh
+        run: |
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          Install-Module -Name ps2exe -Scope CurrentUser -Force -AllowClobber
+          Import-Module ps2exe -Force
+
+      - name: Build install.exe and uninstall.exe
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path .\release -Force | Out-Null
+
+          Invoke-ps2exe .\Src\install.ps1 .\install.exe `
+            -noConsole `
+            -requireAdmin `
+            -iconFile .\Src\icons\install.ico `
+            -title "Wallpaper Installer" `
+            -description "Installs wallpaper automation"
+
+          Invoke-ps2exe .\Src\uninstall.ps1 .\uninstall.exe `
+            -noConsole `
+            -requireAdmin `
+            -iconFile .\Src\icons\uninstall.ico `
+            -title "Wallpaper Uninstaller" `
+            -description "Uninstalls wallpaper automation"
+
+          Move-Item -Path .\install.exe -Destination .\release\install.exe -Force
+          Move-Item -Path .\uninstall.exe -Destination .\release\uninstall.exe -Force
+
+      - name: Commit release EXE files
+        shell: pwsh
+        run: |
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git add -f .\release\install.exe .\release\uninstall.exe
+
+          git diff --cached --quiet
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "No EXE changes to commit."
+            exit 0
+          }
+
+          git commit -m "ci: update release exe files [skip ci]"
+          git push
+
+      - name: Upload EXE artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: exes-${{ github.ref_name }}-${{ github.sha }}
+          path: |
+            release/install.exe
+            release/uninstall.exe
+          if-no-files-found: error
+          retention-days: 30
