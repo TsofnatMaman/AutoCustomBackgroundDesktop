@@ -6,6 +6,11 @@ on:
       - "**"
     paths:
       - "Src/install.ps1"
+  workflow_run:
+    workflows:
+      - "Auto Update Config and Install"
+    types:
+      - completed
   workflow_dispatch:
 
 permissions:
@@ -17,6 +22,7 @@ concurrency:
 
 jobs:
   build:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: windows-latest
 
     steps:
