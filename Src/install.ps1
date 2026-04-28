@@ -1,6 +1,6 @@
 ﻿$githubUsername = "TsofnatMaman"
 $githubRepoName = "AutoCustomBackgroundDesktop"
-$githubBranchName = "main"
+$githubBranchName = "main-face"
 
 $RepoUrl = "https://github.com/$githubUsername/$githubRepoName/archive/refs/heads/$githubBranchName.zip"
 
