@@ -34,10 +34,18 @@ function Test-JsonConfigFile {
 function Test-ImageFile {
     param([string]$Path)
 
+    $fs = $null
     $img = $null
+
     try {
+        if ([string]::IsNullOrWhiteSpace($Path)) { return $false }
+        if (-not (Test-Path $Path)) { return $false }
+
         Add-Type -AssemblyName System.Drawing
-        $img = [System.Drawing.Image]::FromFile($Path)
+
+        $fs = [System.IO.File]::OpenRead($Path)
+        $img = [System.Drawing.Image]::FromStream($fs, $true, $true)
+
         return ($img.Width -gt 0 -and $img.Height -gt 0)
     }
     catch {
@@ -45,6 +53,7 @@ function Test-ImageFile {
     }
     finally {
         if ($img) { $img.Dispose() }
+        if ($fs) { $fs.Dispose() }
     }
 }
 
@@ -155,4 +164,4 @@ function Poll-Img {
         -Validate { param($p) Test-ImageFile -Path $p }
 }
 
-Export-ModuleMember -Function Get-RemoteBaseUrl, Poll-RemoteConfig, Poll-Img
+Export-ModuleMember -Function Get-RemoteBaseUrl, Poll-RemoteConfig, Poll-Img, Test-ImageFile
