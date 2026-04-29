@@ -7,15 +7,45 @@ function Get-RemoteBaseUrl {
         throw "Missing github setting in configuration."
     }
 
-    $username = $cfg.github.username
-    $repository = $cfg.github.repository
-    $branch = $cfg.github.branch
+    return "https://raw.githubusercontent.com/$($cfg.github.username)/$($cfg.github.repository)/$($cfg.github.branch)"
+}
 
-    if ([string]::IsNullOrWhiteSpace($username) -or [string]::IsNullOrWhiteSpace($repository) -or [string]::IsNullOrWhiteSpace($branch)) {
-        throw "github.username/repository/branch must be set in config.json"
+function Test-JsonConfigFile {
+    param([string]$Path)
+
+    try {
+        $cfg = Get-Content $Path -Raw | ConvertFrom-Json
+
+        if (-not $cfg.github.username) { return $false }
+        if (-not $cfg.github.repository) { return $false }
+        if (-not $cfg.github.branch) { return $false }
+        if (-not $cfg.github.imagePath) { return $false }
+        if (-not $cfg.wallpaper.targetDate) { return $false }
+        if (-not $cfg.wallpaper.text) { return $false }
+        if (-not $cfg.wallpaper.time) { return $false }
+
+        return $true
     }
+    catch {
+        return $false
+    }
+}
 
-    return "https://raw.githubusercontent.com/$username/$repository/$branch"
+function Test-ImageFile {
+    param([string]$Path)
+
+    $img = $null
+    try {
+        Add-Type -AssemblyName System.Drawing
+        $img = [System.Drawing.Image]::FromFile($Path)
+        return ($img.Width -gt 0 -and $img.Height -gt 0)
+    }
+    catch {
+        return $false
+    }
+    finally {
+        if ($img) { $img.Dispose() }
+    }
 }
 
 function Poll-Remote {
@@ -23,17 +53,17 @@ function Poll-Remote {
         [string]$RemoteUrl,
         [string]$Path,
         [string]$LogFile = $null,
-        [int]$TimeoutSec = 60
+        [int]$TimeoutSec = 60,
+        [scriptblock]$Validate = $null
     )
+
+    $tempPath = $null
 
     try {
         $dir = Split-Path $Path -Parent
         if (-not (Test-Path $dir)) {
-            Write-Log -Message "dir not found. creating now." -Level "Info" -LogFile $LogFile
             New-Item -ItemType Directory -Path $dir -Force | Out-Null
         }
-
-        Write-Log -Message "Downloading latest file from: $RemoteUrl" -Level "Info" -LogFile $LogFile
 
         $headers = @{
             "Cache-Control" = "no-cache, no-store, must-revalidate"
@@ -43,10 +73,14 @@ function Poll-Remote {
 
         $tempPath = "$Path.$([guid]::NewGuid().ToString('N')).tmp"
 
+        Write-Log -Message "Downloading latest file from: $RemoteUrl" -Level "Info" -LogFile $LogFile
         Invoke-WebRequest -Uri $RemoteUrl -Headers $headers -OutFile $tempPath -TimeoutSec $TimeoutSec -ErrorAction Stop
 
-        Move-Item -Force $tempPath $Path
+        if ($Validate -and -not (& $Validate $tempPath)) {
+            throw "Downloaded file failed validation"
+        }
 
+        Move-Item -Force $tempPath $Path
         Write-Log -Message "File refreshed successfully at: $Path" -Level "Info" -LogFile $LogFile
         return $true
     }
@@ -55,7 +89,7 @@ function Poll-Remote {
             Remove-Item $tempPath -Force -ErrorAction SilentlyContinue
         }
 
-        Write-Log -Message "Configuration refresh failed: $($_.Exception.Message)" -Level "Warning" -LogFile $LogFile
+        Write-Log -Message "Download failed or invalid file. Keeping existing file: $Path. Error: $($_.Exception.Message)" -Level "Warning" -LogFile $LogFile
         return $false
     }
 }
@@ -69,19 +103,18 @@ function Poll-RemoteConfig {
     )
 
     if ([string]::IsNullOrWhiteSpace($RemoteConfigUrl)) {
-        Write-Log -Message "Remote config url not found. Creating now..." -Level "Info" -LogFile $LogFile
-        $RemoteConfigUrl = Get-RemoteBaseUrl -cfg $cfg
-        $RemoteConfigUrl = "$RemoteConfigUrl/Src/config.json"
-        Write-Log -Message "Build Remote config url: $RemoteConfigUrl" -Level "Info" -LogFile $LogFile
+        $RemoteConfigUrl = "$(Get-RemoteBaseUrl -cfg $cfg)/Src/config.json"
     }
 
     if ([string]::IsNullOrWhiteSpace($Path)) {
-        Write-Log -Message "Path not found. creating default." -Level "Info" -LogFile $LogFile
-        $Path = "$env:APPDATA\.wallpaper_countdown\config.json"
-        Write-Log -Message "creating default Path: $Path" -Level "Info" -LogFile $LogFile
+        $Path = "$env:APPDATA\.wallpaper_countdown\Src\config.json"
     }
 
-    Poll-Remote -RemoteUrl $RemoteConfigUrl -Path $Path -LogFile $LogFile
+    return Poll-Remote `
+        -RemoteUrl $RemoteConfigUrl `
+        -Path $Path `
+        -LogFile $LogFile `
+        -Validate { param($p) Test-JsonConfigFile -Path $p }
 }
 
 function Poll-Img {
@@ -93,38 +126,33 @@ function Poll-Img {
     )
 
     $imgPath = $cfg.github.imagePath
-    
-    # Validate and sanitize imagePath
+
     if ([string]::IsNullOrWhiteSpace($imgPath)) {
-        Write-Log -Message "imagePath is empty, using default" -Level "Warning" -LogFile $LogFile
-        $imgPath = "images/bg.jpg"
+        Write-Log -Message "imagePath is empty" -Level "Warning" -LogFile $LogFile
+        return $false
     }
-    elseif ($imgPath -match '(\.\.|\\\.\.|\.\\\.)') {
-        Write-Log -Message "imagePath contains path traversal tokens, using safe default" -Level "Warning" -LogFile $LogFile
-        $imgPath = "images/bg.jpg"
-    }
-    else {
-        # Normalize path separators
-        $imgPath = $imgPath -replace '\\', '/'
-        # Remove leading slashes
-        $imgPath = $imgPath -replace '^[/]+', ''
+
+    $imgPath = $imgPath -replace '\\', '/'
+    $imgPath = $imgPath -replace '^[/]+', ''
+
+    if ($imgPath -match '\.\.') {
+        Write-Log -Message "imagePath contains unsafe path traversal" -Level "Warning" -LogFile $LogFile
+        return $false
     }
 
     if ([string]::IsNullOrWhiteSpace($ImgRemoteUrl)) {
-        Write-Log -Message "ImgRemoteUrl not found. building now..." -Level "Info" -LogFile $LogFile
-        $basicRemoteUrl = Get-RemoteBaseUrl -cfg $cfg
-        $ImgRemoteUrl = "$basicRemoteUrl/$imgPath"
-        Write-Log -Message "building Img remote url: $ImgRemoteUrl" -Level "Info" -LogFile $LogFile
+        $ImgRemoteUrl = "$(Get-RemoteBaseUrl -cfg $cfg)/$imgPath"
     }
 
     if ([string]::IsNullOrWhiteSpace($Path)) {
-        Write-Log -Message "Path not found. building now..." -Level "Info" -LogFile $LogFile
-        $Path = "$env:APPDATA\.wallpaper_countdown\cache\$imgPath"
-        Write-Log -Message "build default Path: $Path" -Level "Info" -LogFile $LogFile
+        $Path = "$env:APPDATA\.wallpaper_countdown\Src\$imgPath"
     }
 
-    $result = Poll-Remote -RemoteUrl $ImgRemoteUrl -Path $Path -LogFile $LogFile
-    return $result
+    return Poll-Remote `
+        -RemoteUrl $ImgRemoteUrl `
+        -Path $Path `
+        -LogFile $LogFile `
+        -Validate { param($p) Test-ImageFile -Path $p }
 }
 
 Export-ModuleMember -Function Get-RemoteBaseUrl, Poll-RemoteConfig, Poll-Img

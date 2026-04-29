@@ -6,6 +6,11 @@ on:
       - "**"
     paths:
       - "Src/install.ps1"
+  workflow_run:
+    workflows:
+      - "Auto Update Config and Install"
+    types:
+      - completed
   workflow_dispatch:
 
 permissions:
@@ -17,11 +22,14 @@ concurrency:
 
 jobs:
   build:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: windows-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_branch || github.ref }}
 
       - name: Install ps2exe module
         shell: pwsh
