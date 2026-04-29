@@ -68,5 +68,19 @@ Describe "Export-CountdownImage" {
                 if (Test-Path $outputPath) { Remove-Item $outputPath -ErrorAction SilentlyContinue }
             }
         }
+
+        It "Keeps existing output if rendering fails" {
+            $testRoot = (Get-PSDrive TestDrive).Root
+            $badBase = Join-Path $testRoot "bad.jpg"
+            $outputPath = Join-Path $testRoot "output.jpg"
+
+            "not an image" | Set-Content -Path $badBase
+            "old output" | Set-Content -Path $outputPath
+
+            $result = Export-CountdownImage -Base $badBase -Output $outputPath -Text "New text"
+
+            $result | Should -Be $false
+            (Get-Content $outputPath -Raw) | Should -Match "old output"
+        }
     }
 }
