@@ -55,7 +55,7 @@ function DailyRun {
 
     # ===== Image Handling =====
     $imgPath = $cfg.github.imagePath
-    $imgPathDefault = Join-Path $appDir "Src\$imgPath"
+    $imgPathDefault = Join-Path $appDir $imgPath
     $outImgDefault = Join-Path $appDir "cache\$imgPath"
 
     $lastValidDir = Join-Path $appDir "cache\last-valid"
@@ -85,7 +85,7 @@ function DailyRun {
     else {
         Write-Log -Message "Current image and last-valid image are unavailable. Searching for any valid previous image." -Level "Warning" -LogFile $logFile
 
-        $srcBackgrounds = Join-Path $appDir "Src\backgrounds"
+        $srcBackgrounds = Join-Path $appDir "backgrounds"
         $cacheBackgrounds = Join-Path $appDir "cache\backgrounds"
 
         $fallbackImage = Get-FirstValidImageFromFolder -Folder $srcBackgrounds -LogFile $logFile
