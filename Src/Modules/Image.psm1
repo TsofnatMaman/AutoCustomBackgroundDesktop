@@ -107,8 +107,16 @@ function Export-CountdownImage {
         $encParams.Param[0] = $encParam
 
         Write-Log -Message "Saving output image -> $Output" -Level "Info" -LogFile $LogFile
-        $image.Save($Output, $jpegCodec, $encParams)
+        $tempOutput = "$Output.$([guid]::NewGuid().ToString('N')).tmp.jpg"
 
+        $image.Save($tempOutput, $jpegCodec, $encParams)
+
+        if (-not (Test-Path $tempOutput)) {
+            throw "Temporary output image was not created"
+        }
+
+        Move-Item -Force $tempOutput $Output
+        
         Write-Log -Message "Image saved successfully" -Level "Info" -LogFile $LogFile
         Write-Log -Message "=== Export-CountdownImage SUCCESS ===" -Level "Info" -LogFile $LogFile
 
