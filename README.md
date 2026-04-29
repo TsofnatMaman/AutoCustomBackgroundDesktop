@@ -31,10 +31,9 @@ Automatically sets your Windows desktop wallpaper to a base image with a **count
 
 ## Installation
 
-1. Fork this repository and push your customizations (see [Configuration](#configuration) below).
-2. Push a commit with a change in `Src/install.ps1` to trigger the EXE build workflow (see [Build EXE](#build-exe)).
-3. Download or use `release/install.exe`.
-4. Run `install.exe` as Administrator.
+1. Fork this repository, open new branch for each event and push your customizations (see [Configuration](#configuration) below).
+2. Download or use `release/install.exe`.
+3. Run `install.exe` as Administrator.
 
 The installer will:
 - Download the repository ZIP from GitHub into `%APPDATA%\.wallpaper_countdown`.
