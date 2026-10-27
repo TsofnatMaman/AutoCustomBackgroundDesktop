@@ -20,6 +20,9 @@ function Export-CountdownImage {
     $brushText = $null
     $brushShadow = $null
     $brushBg = $null
+    $encParams = $null
+    $encParam = $null
+    $tempOutput = $null
 
     try {
         if ([string]::IsNullOrWhiteSpace($Base) -or -not (Test-Path $Base)) {
@@ -99,17 +102,25 @@ function Export-CountdownImage {
         Write-Log -Message "Drawing main text" -Level "Info" -LogFile $LogFile
         [void]$graphics.DrawString($Text, $font, $brushText, $point, $stringFormat)
 
-        Write-Log -Message "Setting up JPEG encoder with quality 95" -Level "Debug" -LogFile $LogFile
-        $jpegCodec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq "image/jpeg" }
-        $encParams = New-Object System.Drawing.Imaging.EncoderParameters 1
-        $qualityEncoder = [System.Drawing.Imaging.Encoder]::Quality
-        $encParam = New-Object System.Drawing.Imaging.EncoderParameter($qualityEncoder, 95L)
-        $encParams.Param[0] = $encParam
-
-        Write-Log -Message "Saving output image -> $Output" -Level "Info" -LogFile $LogFile
-        $tempOutput = "$Output.$([guid]::NewGuid().ToString('N')).tmp.jpg"
-
-        $image.Save($tempOutput, $jpegCodec, $encParams)
+        $extension = [System.IO.Path]::GetExtension($Output).ToLowerInvariant()
+        if ($extension -notin @('.png', '.jpg', '.jpeg', '.bmp')) {
+            throw "Unsupported output image extension: $extension"
+        }
+        $tempOutput = "$Output.$([guid]::NewGuid().ToString('N')).tmp"
+        Write-Log -Message "Saving $extension image -> $Output" -Level "Info" -LogFile $LogFile
+        if ($extension -eq '.png') {
+            $image.Save($tempOutput, [System.Drawing.Imaging.ImageFormat]::Png)
+        }
+        elseif ($extension -eq '.bmp') {
+            $image.Save($tempOutput, [System.Drawing.Imaging.ImageFormat]::Bmp)
+        }
+        else {
+            $jpegCodec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq "image/jpeg" }
+            $encParams = New-Object System.Drawing.Imaging.EncoderParameters 1
+            $encParam = New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::Quality, 95L)
+            $encParams.Param[0] = $encParam
+            $image.Save($tempOutput, $jpegCodec, $encParams)
+        }
 
         if (-not (Test-Path $tempOutput)) {
             throw "Temporary output image was not created"
@@ -130,6 +141,9 @@ function Export-CountdownImage {
     finally {
         Write-Log -Message "Cleaning up resources" -Level "Debug" -LogFile $LogFile
 
+        if ($tempOutput -and (Test-Path -LiteralPath $tempOutput)) { Remove-Item -LiteralPath $tempOutput -Force -ErrorAction SilentlyContinue }
+        if ($encParam) { $encParam.Dispose() }
+        if ($encParams) { $encParams.Dispose() }
         if ($brushBg) { $brushBg.Dispose(); Write-Log -Message "Background brush disposed" -Level "Debug" -LogFile $LogFile }
         if ($brushShadow) { $brushShadow.Dispose(); Write-Log -Message "Shadow brush disposed" -Level "Debug" -LogFile $LogFile }
         if ($brushText) { $brushText.Dispose(); Write-Log -Message "Text brush disposed" -Level "Debug" -LogFile $LogFile }
