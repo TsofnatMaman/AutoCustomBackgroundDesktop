@@ -8,7 +8,7 @@ Automatically sets your Windows desktop wallpaper to a base image with a **count
 
 - Downloads a fresh base image and config daily from your GitHub repository.
 - Renders a customizable countdown text (with shadow and semi-transparent background) onto the image.
-- Sets the rendered image as the Windows desktop wallpaper.
+- Sets the rendered image as the Windows desktop wallpaper, Windows lock screen, or both (desktop by default).
 - Runs silently — no visible PowerShell window.
 - Task Scheduler integration:
   - Daily at a configured time (default `00:30`).
@@ -61,7 +61,11 @@ Edit `Src/config.json` before pushing to GitHub (the installer will pick it up a
   "wallpaper": {
     "targetDate": "2026-12-31",
     "text": "...עוד {days} ימים",
-    "time": "00:30"
+    "time": "00:30",
+    "targets": {
+      "desktop": true,
+      "lockScreen": false
+    }
   }
 }
 ```
@@ -77,6 +81,8 @@ Edit `Src/config.json` before pushing to GitHub (the installer will pick it up a
 | `wallpaper.targetDate` | The target countdown date (`YYYY-MM-DD`). |
 | `wallpaper.text` | Text rendered on the wallpaper. Use `{days}` as a placeholder for the day count. |
 | `wallpaper.time` | Daily trigger time for the Scheduled Task (`HH:mm`). |
+| `wallpaper.targets.desktop` | Enable desktop updates (`true` or `false`). |
+| `wallpaper.targets.lockScreen` | Enable lock screen updates (`true` or `false`). |
 
 > **Note:** GitHub Actions workflows automatically run on push:
 > - `.github/workflows/auto-update-config.yml` keeps `Src/config.json` and `Src/install.ps1` aligned with the current GitHub context.
@@ -92,7 +98,7 @@ Edit `Src/config.json` before pushing to GitHub (the installer will pick it up a
    - Downloads the latest base image from `github.imagePath`.
    - Computes the number of days remaining until `wallpaper.targetDate`.
    - If days remaining ≤ 0: prints a completion message prompting you to run `uninstall.exe`.
-   - Otherwise: renders the countdown text onto the image using GDI+ (`System.Drawing`) and sets it as the desktop wallpaper via `SystemParametersInfo`.
+   - Otherwise: renders the countdown text onto the image using GDI+ (`System.Drawing`) and applies it to the selected destinations: desktop via `SystemParametersInfo`, lock screen via the Windows Runtime `LockScreen.SetImageFileAsync` API.
 3. **Silent execution** — `Src/run_hidden.vbs` launches `daily_run.ps1` via `wscript.exe` with window style `0` (hidden), so no console window appears.
 
 ### Module overview
@@ -104,7 +110,14 @@ Edit `Src/config.json` before pushing to GitHub (the installer will pick it up a
 | `Src/Modules/Downloads.psm1` | Polls remote config and images from GitHub with cache-busting headers (`Get-RemoteBaseUrl`, `Poll-RemoteConfig`, `Poll-Img`). |
 | `Src/Modules/Countdown.psm1` | Calculates days remaining and formats the display text (`Get-DaysRemaining`, `Get-DaysText`). |
 | `Src/Modules/Image.psm1` | Renders text overlay onto the base image and saves a JPEG (`Export-CountdownImage`). |
-| `Src/Modules/System.psm1` | Sets the desktop wallpaper via the Windows API (`Set-Wallpaper`). |
+| `Src/Modules/System.psm1` | Sets the desktop wallpaper (`Set-Wallpaper`) and lock screen (`Set-LockScreenWallpaper`) via Windows APIs. |
+| `Src/Modules/WallpaperTarget.psm1` | Validates independent wallpaper destinations (`Get-WallpaperTargets`) with a backward-compatible desktop default. |
+
+### Lock screen notes
+
+The project creator selects targets independently using `wallpaper.targets.desktop` and `wallpaper.targets.lockScreen` in `Src/config.json`. Existing configurations default to desktop only, and legacy `applyTo` remains supported. The daily countdown image is reused for each selected destination. The option is available through configuration (there is no graphical settings screen).
+
+Lock screen updates use the Windows Runtime API and must run as a supported 64-bit Windows process under the signed-in user. Windows-managed or organization-enforced lock screens may reject changes; failures are recorded in the application log without preventing the desktop update. The feature does not change system-wide lock screen policies or protected Windows files. Validate on your target Windows 10/11 version before deploying.
 
 ---
 
