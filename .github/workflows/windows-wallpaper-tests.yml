@@ -27,17 +27,17 @@ jobs:
           Import-Module Pester -RequiredVersion 5.7.1 -Force
           $result = Invoke-Pester -Path ./Tests -PassThru
           if ($result.FailedCount -gt 0 -or $result.PassedCount -eq 0) { exit 1 }
-      - name: Check PowerShell syntax and lock screen bridge compilation
+      - name: Check PowerShell syntax and Windows Runtime API availability
         shell: powershell
         run: |
           $tokens = $null; $errors = $null
           [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path ./Src/Modules/System.psm1), [ref]$tokens, [ref]$errors) | Out-Null
           if ($errors.Count -gt 0) { throw ($errors | Out-String) }
-          $source = Get-Content ./Src/Modules/System.psm1 -Raw
-          $match = [regex]::Match($source, '(?s)\$bridge\s*=\s*@"\r?\n(.*?)\r?\n"@')
-          if (-not $match.Success) { throw 'Lock screen C# bridge source not found' }
-          Add-Type -TypeDefinition $match.Groups[1].Value -ReferencedAssemblies @("$env:WINDIR\System32\WinMetadata\Windows.winmd") -ErrorAction Stop
-          if (-not ('WallpaperLockScreenBridge' -as [type])) { throw 'Lock screen bridge did not compile' }
+          $storageType = [Windows.Storage.StorageFile,Windows.Storage,ContentType=WindowsRuntime]
+          $lockScreenType = [Windows.System.UserProfile.LockScreen,Windows.System.UserProfile,ContentType=WindowsRuntime]
+          if ($null -eq $storageType -or $null -eq $lockScreenType) { throw 'WinRT types are unavailable' }
+          if (-not ($storageType.GetMethods().Name -contains 'GetFileFromPathAsync')) { throw 'StorageFile.GetFileFromPathAsync unavailable' }
+          if (-not ($lockScreenType.GetMethods().Name -contains 'SetImageFileAsync')) { throw 'LockScreen.SetImageFileAsync unavailable' }
       - name: Validate all wallpaper target combinations
         shell: powershell
         run: |

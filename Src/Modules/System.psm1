@@ -75,43 +75,23 @@ function Set-LockScreenWallpaper {
         $null = [Windows.Foundation.IAsyncOperation`1,Windows.Foundation,ContentType=WindowsRuntime]
         $null = [Windows.Foundation.IAsyncAction,Windows.Foundation,ContentType=WindowsRuntime]
 
-        # PowerShell 5.1 cannot await IAsyncOperation/IAsyncAction directly. A small
-        # C# bridge awaits both operations so failures are reported, not fire-and-forgotten.
-        if (-not ('WallpaperLockScreenBridge' -as [type])) {
-            $bridge = @"
-using System;
-using Windows.Foundation;
-using Windows.Storage;
-using Windows.System.UserProfile;
-public static class WallpaperLockScreenBridge
-{
-    public static void SetImage(string path)
-    {
-        var fileOperation = StorageFile.GetFileFromPathAsync(path);
-        var fileCompletion = new System.Threading.Tasks.TaskCompletionSource<StorageFile>();
-        fileOperation.Completed = (operation, status) =>
-        {
-            try { fileCompletion.TrySetResult(operation.GetResults()); }
-            catch (Exception ex) { fileCompletion.TrySetException(ex); }
-        };
-        var file = fileCompletion.Task.GetAwaiter().GetResult();
-        var setOperation = LockScreen.SetImageFileAsync(file);
-        var setCompletion = new System.Threading.Tasks.TaskCompletionSource<bool>();
-        setOperation.Completed = (operation, status) =>
-        {
-            try { operation.GetResults(); setCompletion.TrySetResult(true); }
-            catch (Exception ex) { setCompletion.TrySetException(ex); }
-        };
-        setCompletion.Task.GetAwaiter().GetResult();
-    }
-}
-"@
-            Add-Type -TypeDefinition $bridge -ReferencedAssemblies @(
-                [System.IO.Path]::Combine($env:WINDIR, 'System32', 'WinMetadata', 'Windows.winmd')
-            ) -ErrorAction Stop
+        # Windows Runtime metadata is not a CLR assembly and cannot be passed to Add-Type.
+        # Poll the WinRT async operations directly; GetResults surfaces API failures.
+        $fileOperation = $storageType::GetFileFromPathAsync($resolvedPath)
+        $deadline = [DateTime]::UtcNow.AddSeconds(30)
+        while ([string]$fileOperation.Status -eq 'Started') {
+            if ([DateTime]::UtcNow -ge $deadline) { throw 'Timed out opening the lock screen image.' }
+            Start-Sleep -Milliseconds 50
         }
+        $file = $fileOperation.GetResults()
 
-        [WallpaperLockScreenBridge]::SetImage($resolvedPath)
+        $setOperation = $lockScreenType::SetImageFileAsync($file)
+        $deadline = [DateTime]::UtcNow.AddSeconds(30)
+        while ([string]$setOperation.Status -eq 'Started') {
+            if ([DateTime]::UtcNow -ge $deadline) { throw 'Timed out updating the lock screen image.' }
+            Start-Sleep -Milliseconds 50
+        }
+        $setOperation.GetResults()
         Write-Log -Message "Lock screen wallpaper set successfully: $resolvedPath" -Level "Info" -LogFile $LogFile
         return $true
     }
