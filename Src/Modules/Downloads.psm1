@@ -7,6 +7,12 @@ function Get-RemoteBaseUrl {
         throw "Missing github setting in configuration."
     }
 
+    foreach ($name in @("username", "repository", "branch")) {
+        if ([string]::IsNullOrWhiteSpace([string]$cfg.github.$name)) {
+            throw "github.username/repository/branch must be set in config.json"
+        }
+    }
+
     return "https://raw.githubusercontent.com/$($cfg.github.username)/$($cfg.github.repository)/$($cfg.github.branch)"
 }
 

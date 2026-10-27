@@ -33,19 +33,18 @@ Describe "Get-RemoteBaseUrl" {
             @{ Name = "Null Branch";     Username = "user"; Repo = "repo"; Branch = $null }
         )
 
-        foreach ($case in $testCases) {
-            It "Should throw an error when provided: $($case.Name)" {
-                $mockCfg = @{
-                    github = @{
-                        username   = $case.Username
-                        repository = $case.Repo
-                        branch     = $case.Branch
-                    }
+        It "Should throw an error when provided: <Name>" -TestCases $testCases {
+            param($Name, $Username, $Repo, $Branch)
+            $mockCfg = @{
+                github = @{
+                    username   = $Username
+                    repository = $Repo
+                    branch     = $Branch
                 }
-
-                { Get-RemoteBaseUrl -cfg $mockCfg } |
-                    Should -Throw "github.username/repository/branch must be set in config.json"
             }
+
+            { Get-RemoteBaseUrl -cfg $mockCfg } |
+                Should -Throw "github.username/repository/branch must be set in config.json"
         }
     }
 }
