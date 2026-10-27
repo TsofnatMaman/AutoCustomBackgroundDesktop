@@ -84,3 +84,30 @@ Describe "Export-CountdownImage" {
         }
     }
 }
+
+
+Describe "Rendered image file signatures" {
+    BeforeAll {
+        Add-Type -AssemblyName System.Drawing
+    }
+    It "Writes actual PNG bytes for a .png destination" {
+        $source = Join-Path $TestDrive "input.png"
+        $target = Join-Path $TestDrive "rendered.png"
+        $bmp = New-Object System.Drawing.Bitmap(300, 225)
+        try { $bmp.Save($source, [System.Drawing.Imaging.ImageFormat]::Png) }
+        finally { $bmp.Dispose() }
+        (Export-CountdownImage -Base $source -Output $target -Text "Test") | Should -BeTrue
+        $bytes = [System.IO.File]::ReadAllBytes($target)
+        ([BitConverter]::ToString($bytes[0..7])) | Should -Be "89-50-4E-47-0D-0A-1A-0A"
+    }
+    It "Writes actual JPEG bytes for a .jpg destination" {
+        $source = Join-Path $TestDrive "input.jpg"
+        $target = Join-Path $TestDrive "rendered.jpg"
+        $bmp = New-Object System.Drawing.Bitmap(300, 225)
+        try { $bmp.Save($source, [System.Drawing.Imaging.ImageFormat]::Jpeg) }
+        finally { $bmp.Dispose() }
+        (Export-CountdownImage -Base $source -Output $target -Text "Test") | Should -BeTrue
+        $bytes = [System.IO.File]::ReadAllBytes($target)
+        ([BitConverter]::ToString($bytes[0..2])) | Should -Be "FF-D8-FF"
+    }
+}

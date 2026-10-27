@@ -5,7 +5,9 @@ $githubBranchName = "shira-wedding"
 $RepoUrl = "https://github.com/$githubUsername/$githubRepoName/archive/refs/heads/$githubBranchName.zip"
 
 $localPath = Join-Path $env:APPDATA ".wallpaper_countdown"
-$logFile = Join-Path $localPath "install.log"
+$logDir = Join-Path $env:LOCALAPPDATA "WallpaperCountdown\logs"
+$logFile = Join-Path $logDir "install.log"
+New-Item -ItemType Directory -Path $logDir -Force | Out-Null
 
 # download zip and extract it to $env:APPDATA/.wallpaper_countdown
 function Write-Log {
@@ -130,17 +132,26 @@ function Set-ScheduledTask {
     }
 }
 
+Add-Type -AssemblyName System.Windows.Forms
 New-Item -ItemType Directory -Path $localPath -Force | Out-Null
 Write-Log "Start installing..." "Info" $logFile
 
 try {
-    Get-Repo *> $null
-    Set-ScheduledTask *> $null
-    # run first daily_run 
-    & "$env:APPDATA/.wallpaper_countdown/Src/daily_run.ps1" *> $null
-    Write-Host "Install success!"
+    Get-Repo
+    Set-ScheduledTask
+    Write-Log "Running initial wallpaper update..." "Info" $logFile
+    $scriptPath = Join-Path $localPath "Src\daily_run.ps1"
+    & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File $scriptPath 2>&1 |
+        ForEach-Object { Write-Log "$_" "Info" $logFile }
+    if ($LASTEXITCODE -ne 0) { throw "Initial wallpaper update failed (exit code $LASTEXITCODE). Check cache logs." }
+    Write-Log "Install success!" "Info" $logFile
+    Write-Host "Install success! Log: $logFile"
+    [System.Windows.Forms.MessageBox]::Show("Installation completed successfully.`nLog: $logFile", "Wallpaper Installer") | Out-Null
 }
 catch {
-    Write-Host "Install failed: $($_.Exception.Message)"
+    $message = "Install failed: $($_.Exception.Message)`nLog: $logFile"
+    Write-Log $message "Error" $logFile
+    Write-Host $message
+    [System.Windows.Forms.MessageBox]::Show($message, "Wallpaper Installer") | Out-Null
     exit 1
 }
