@@ -41,7 +41,7 @@ function DailyRun {
 
     if (-not (Test-Path $configPath)) {
         Write-Log -Message "Config file does not exist: $configPath" -Level "Error" -LogFile $logFile
-        return
+        return $false
     }
 
     try {
@@ -51,7 +51,7 @@ function DailyRun {
     }
     catch {
         Write-Log -Message "Config load failed. Keeping previous state. Error: $($_.Exception.Message)" -Level "Error" -LogFile $logFile
-        return
+        return $false
     }
 
     try {
@@ -59,7 +59,7 @@ function DailyRun {
     }
     catch {
         Write-Log -Message "Invalid wallpaper destination: $($_.Exception.Message)" -Level "Error" -LogFile $logFile
-        return
+        return $false
     }
 
     # ===== Image Handling =====
@@ -112,7 +112,7 @@ function DailyRun {
 
     if (-not $baseImageToUse) {
         Write-Log -Message "No valid image found at all. Wallpaper was not changed." -Level "Error" -LogFile $logFile
-        return
+        return $false
     }
 
     # ===== Countdown =====
@@ -120,7 +120,7 @@ function DailyRun {
 
     if ($dayRemain -le 0) {
         Write-Host "The program is finished, to uninstall - copy to another folder and run the file %APPDATA%\.wallpaper_countdown\Src\uninstall.exe We invite you to use the program again - github.com/$($cfg.github.username)/$($cfg.github.repository)"
-        return
+        return $true
     }
 
     $textDaysRemain = Get-DaysText -cfg $cfg
@@ -133,15 +133,22 @@ function DailyRun {
 
     if (-not $renderOk -or -not (Test-Path $outImgDefault)) {
         Write-Log -Message "Image rendering failed. Wallpaper was not changed." -Level "Error" -LogFile $logFile
-        return
+        return $false
     }
 
+    $desktopOk = $true
+    $lockScreenOk = $true
     if ($targets.desktop) {
-        $null = Set-Wallpaper -Path $outImgDefault -LogFile $logFile
+        $desktopOk = Set-Wallpaper -Path $outImgDefault -LogFile $logFile
     }
     if ($targets.lockScreen) {
-        $null = Set-LockScreenWallpaper -Path $outImgDefault -LogFile $logFile
+        $lockScreenOk = Set-LockScreenWallpaper -Path $outImgDefault -LogFile $logFile
     }
+    if (-not $desktopOk -or -not $lockScreenOk) {
+        Write-Log -Message "Wallpaper update failed for at least one target." -Level "Error" -LogFile $logFile
+        return $false
+    }
+    return $true
 }
 
-DailyRun
+if (-not (DailyRun)) { exit 1 }
