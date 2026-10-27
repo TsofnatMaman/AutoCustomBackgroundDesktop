@@ -1,0 +1,51 @@
+name: Windows wallpaper tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - 'feat/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Pester 5
+        shell: powershell
+        run: |
+          Set-PSRepository PSGallery -InstallationPolicy Trusted
+          Install-Module Pester -RequiredVersion 5.7.1 -Scope CurrentUser -Force -SkipPublisherCheck
+      - name: Run Pester tests (Windows PowerShell 5.1)
+        shell: powershell
+        run: |
+          Import-Module Pester -RequiredVersion 5.7.1 -Force
+          $result = Invoke-Pester -Path ./Tests -PassThru
+          if ($result.FailedCount -gt 0 -or $result.PassedCount -eq 0) { exit 1 }
+      - name: Check PowerShell syntax and Windows Runtime API availability
+        shell: powershell
+        run: |
+          $tokens = $null; $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path ./Src/Modules/System.psm1), [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count -gt 0) { throw ($errors | Out-String) }
+          $storageType = [Windows.Storage.StorageFile,Windows.Storage,ContentType=WindowsRuntime]
+          $lockScreenType = [Windows.System.UserProfile.LockScreen,Windows.System.UserProfile,ContentType=WindowsRuntime]
+          if ($null -eq $storageType -or $null -eq $lockScreenType) { throw 'WinRT types are unavailable' }
+          if (-not ($storageType.GetMethods().Name -contains 'GetFileFromPathAsync')) { throw 'StorageFile.GetFileFromPathAsync unavailable' }
+          if (-not ($lockScreenType.GetMethods().Name -contains 'SetImageFileAsync')) { throw 'LockScreen.SetImageFileAsync unavailable' }
+      - name: Validate all wallpaper target combinations
+        shell: powershell
+        run: |
+          Import-Module ./Src/Modules/WallpaperTarget.psm1 -Force
+          foreach ($desktop in @($false,$true)) {
+            foreach ($lockScreen in @($false,$true)) {
+              $cfg = [pscustomobject]@{ wallpaper = [pscustomobject]@{ targets = [pscustomobject]@{ desktop = $desktop; lockScreen = $lockScreen } } }
+              $actual = Get-WallpaperTargets -Config $cfg
+              if ($actual.desktop -ne $desktop -or $actual.lockScreen -ne $lockScreen) { throw 'Target selection mismatch' }
+            }
+          }
