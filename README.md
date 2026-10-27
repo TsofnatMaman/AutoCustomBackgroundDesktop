@@ -62,7 +62,10 @@ Edit `Src/config.json` before pushing to GitHub (the installer will pick it up a
     "targetDate": "2026-12-31",
     "text": "...עוד {days} ימים",
     "time": "00:30",
-    "applyTo": "desktop"
+    "targets": {
+      "desktop": true,
+      "lockScreen": false
+    }
   }
 }
 ```
@@ -78,7 +81,8 @@ Edit `Src/config.json` before pushing to GitHub (the installer will pick it up a
 | `wallpaper.targetDate` | The target countdown date (`YYYY-MM-DD`). |
 | `wallpaper.text` | Text rendered on the wallpaper. Use `{days}` as a placeholder for the day count. |
 | `wallpaper.time` | Daily trigger time for the Scheduled Task (`HH:mm`). |
-| `wallpaper.applyTo` | Destination: `desktop` (default for existing configurations), `lockScreen`, or `both`. |
+| `wallpaper.targets.desktop` | Enable desktop updates (`true` or `false`). |
+| `wallpaper.targets.lockScreen` | Enable lock screen updates (`true` or `false`). |
 
 > **Note:** GitHub Actions workflows automatically run on push:
 > - `.github/workflows/auto-update-config.yml` keeps `Src/config.json` and `Src/install.ps1` aligned with the current GitHub context.
@@ -107,11 +111,11 @@ Edit `Src/config.json` before pushing to GitHub (the installer will pick it up a
 | `Src/Modules/Countdown.psm1` | Calculates days remaining and formats the display text (`Get-DaysRemaining`, `Get-DaysText`). |
 | `Src/Modules/Image.psm1` | Renders text overlay onto the base image and saves a JPEG (`Export-CountdownImage`). |
 | `Src/Modules/System.psm1` | Sets the desktop wallpaper (`Set-Wallpaper`) and lock screen (`Set-LockScreenWallpaper`) via Windows APIs. |
-| `Src/Modules/WallpaperTarget.psm1` | Validates the wallpaper destination (`Get-WallpaperTarget`) with a backward-compatible desktop default. |
+| `Src/Modules/WallpaperTarget.psm1` | Validates independent wallpaper destinations (`Get-WallpaperTargets`) with a backward-compatible desktop default. |
 
 ### Lock screen notes
 
-Set `wallpaper.applyTo` to `lockScreen` or `both` in `Src/config.json`. The daily countdown image is reused for each selected destination. The option is available through configuration (there is no graphical settings screen).
+The project creator selects targets independently using `wallpaper.targets.desktop` and `wallpaper.targets.lockScreen` in `Src/config.json`. Existing configurations default to desktop only, and legacy `applyTo` remains supported. The daily countdown image is reused for each selected destination. The option is available through configuration (there is no graphical settings screen).
 
 Lock screen updates use the Windows Runtime API and must run as a supported 64-bit Windows process under the signed-in user. Windows-managed or organization-enforced lock screens may reject changes; failures are recorded in the application log without preventing the desktop update. The feature does not change system-wide lock screen policies or protected Windows files. Validate on your target Windows 10/11 version before deploying.
 

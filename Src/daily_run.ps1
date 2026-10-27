@@ -55,7 +55,7 @@ function DailyRun {
     }
 
     try {
-        $applyTo = Get-WallpaperTarget -Config $cfg
+        $targets = Get-WallpaperTargets -Config $cfg
     }
     catch {
         Write-Log -Message "Invalid wallpaper destination: $($_.Exception.Message)" -Level "Error" -LogFile $logFile
@@ -136,10 +136,10 @@ function DailyRun {
         return
     }
 
-    if ($applyTo -in @("desktop", "both")) {
+    if ($targets.desktop) {
         $null = Set-Wallpaper -Path $outImgDefault -LogFile $logFile
     }
-    if ($applyTo -in @("lockScreen", "both")) {
+    if ($targets.lockScreen) {
         $null = Set-LockScreenWallpaper -Path $outImgDefault -LogFile $logFile
     }
 }

@@ -13,6 +13,9 @@
     "targetDate": "2026-11-18",
     "text": "...עוד {days} ימים",
     "time": "00:30",
-    "applyTo": "desktop"
+    "targets": {
+      "desktop": true,
+      "lockScreen": false
+    }
   }
 }
