@@ -4,6 +4,7 @@ Import-Module "$PSScriptRoot/Modules/Downloads.psm1"
 Import-Module "$PSScriptRoot/Modules/Countdown.psm1"
 Import-Module "$PSScriptRoot/Modules/Image.psm1"
 Import-Module "$PSScriptRoot/Modules/System.psm1"
+Import-Module "$PSScriptRoot/Modules/WallpaperTarget.psm1"
 
 function Get-FirstValidImageFromFolder {
     param(
@@ -50,6 +51,14 @@ function DailyRun {
     }
     catch {
         Write-Log -Message "Config load failed. Keeping previous state. Error: $($_.Exception.Message)" -Level "Error" -LogFile $logFile
+        return
+    }
+
+    try {
+        $applyTo = Get-WallpaperTarget -Config $cfg
+    }
+    catch {
+        Write-Log -Message "Invalid wallpaper destination: $($_.Exception.Message)" -Level "Error" -LogFile $logFile
         return
     }
 
@@ -127,7 +136,12 @@ function DailyRun {
         return
     }
 
-    Set-Wallpaper -Path $outImgDefault -LogFile $logFile
+    if ($applyTo -in @("desktop", "both")) {
+        $null = Set-Wallpaper -Path $outImgDefault -LogFile $logFile
+    }
+    if ($applyTo -in @("lockScreen", "both")) {
+        $null = Set-LockScreenWallpaper -Path $outImgDefault -LogFile $logFile
+    }
 }
 
 DailyRun
