@@ -15,7 +15,7 @@
     "time": "00:30",
     "targets": {
       "desktop": true,
-      "lockScreen": false
+      "lockScreen": true
     }
   }
 }
