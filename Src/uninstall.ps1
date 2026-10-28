@@ -1,5 +1,13 @@
 $ConfirmPreference = 'None'
 
+# Uninstall must target the interactive user, never a different UAC admin account.
+$currentIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
+$currentPrincipal = New-Object Security.Principal.WindowsPrincipal($currentIdentity)
+if ($currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    Write-Host 'Run uninstall.exe without administrator elevation, from the Windows account where it was installed.'
+    exit 1
+}
+
 $localPath = Join-Path $env:APPDATA ".wallpaper_countdown"
 
 function Write-Log {
