@@ -140,7 +140,13 @@ function Set-ScheduledTask {
         Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
         Register-ScheduledTask -TaskName $taskName -Action $action -Trigger @($dailyTrigger, $logonTrigger) -Settings $setting -Principal $principal -Description "Change wallpaper daily and on logon" -ErrorAction Stop | Out-Null
         $registered = Get-ScheduledTask -TaskName $taskName -ErrorAction Stop
-        $registeredSid = ([Security.Principal.NTAccount]$registered.Principal.UserId).Translate([Security.Principal.SecurityIdentifier]).Value
+        $registeredUserId = $registered.Principal.UserId
+        if ($registeredUserId -match "^S-1-") {
+            $registeredSid = $registeredUserId
+        }
+        else {
+            $registeredSid = ([Security.Principal.NTAccount]$registeredUserId).Translate([Security.Principal.SecurityIdentifier]).Value
+        }
         if ($registeredSid -ne $sid) {
             throw "Task owner mismatch: expected $sid but found $registeredSid"
         }
