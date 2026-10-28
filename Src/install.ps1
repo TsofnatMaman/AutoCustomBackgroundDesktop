@@ -4,6 +4,19 @@ $githubBranchName = "shira-wedding"
 
 $RepoUrl = "https://github.com/$githubUsername/$githubRepoName/archive/refs/heads/$githubBranchName.zip"
 
+# This is a per-user installer. Elevation (especially with another account\'s UAC
+# credentials) changes APPDATA and WindowsIdentity to the administrator account.
+# Abort before writing files or creating tasks in the wrong profile.
+$currentIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
+$currentPrincipal = New-Object Security.Principal.WindowsPrincipal($currentIdentity)
+if ($currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    $message = "This installer must run WITHOUT administrator elevation. Sign in as the intended Windows user and launch install.exe normally (not Run as administrator). No changes were made."
+    Write-Host $message
+    Add-Type -AssemblyName System.Windows.Forms
+    [System.Windows.Forms.MessageBox]::Show($message, "Wallpaper Installer", "OK", "Warning") | Out-Null
+    exit 1
+}
+
 $localPath = Join-Path $env:APPDATA ".wallpaper_countdown"
 $logDir = Join-Path $env:LOCALAPPDATA "WallpaperCountdown\logs"
 $logFile = Join-Path $logDir "install.log"
@@ -125,12 +138,21 @@ function Set-ScheduledTask {
     try {
         Write-Log "try register task" "Info" $logFile
         Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
-        Register-ScheduledTask -TaskName $taskName -Action $action -Trigger @($dailyTrigger, $logonTrigger) -Settings $setting -Principal $principal -Description "Change wallpaper daily and on logon" | Out-Null
+        Register-ScheduledTask -TaskName $taskName -Action $action -Trigger @($dailyTrigger, $logonTrigger) -Settings $setting -Principal $principal -Description "Change wallpaper daily and on logon" -ErrorAction Stop | Out-Null
+        $registered = Get-ScheduledTask -TaskName $taskName -ErrorAction Stop
+        $registeredSid = ([Security.Principal.NTAccount]$registered.Principal.UserId).Translate([Security.Principal.SecurityIdentifier]).Value
+        if ($registeredSid -ne $sid) {
+            throw "Task owner mismatch: expected $sid but found $registeredSid"
+        }
+        if ($registered.State -eq "Disabled" -or $registered.Actions.Count -lt 1) {
+            throw "Task is disabled or has no action: $taskName"
+        }
+        Write-Log "Scheduled task verified: $taskName; SID=$registeredSid; state=$($registered.State); script=$($action.Arguments)" "Info" $logFile
         Write-Log "register task succeed!" "Info" $logFile
     }
     catch {
-        Write-Log "Register task failed!" "Error" $logFile
-        throw "Register task failed!"
+        Write-Log "Register task failed: $($_.Exception.Message)" "Error" $logFile
+        throw
     }
 }
 
