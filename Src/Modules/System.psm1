@@ -72,26 +72,36 @@ function Set-LockScreenWallpaper {
         $resolvedPath = (Resolve-Path -LiteralPath $Path -ErrorAction Stop).ProviderPath
         $storageType = [Windows.Storage.StorageFile,Windows.Storage,ContentType=WindowsRuntime]
         $lockScreenType = [Windows.System.UserProfile.LockScreen,Windows.System.UserProfile,ContentType=WindowsRuntime]
-        $null = [Windows.Foundation.IAsyncOperation`1,Windows.Foundation,ContentType=WindowsRuntime]
-        $null = [Windows.Foundation.IAsyncAction,Windows.Foundation,ContentType=WindowsRuntime]
-
-        # Windows Runtime metadata is not a CLR assembly and cannot be passed to Add-Type.
-        # Poll the WinRT async operations directly; GetResults surfaces API failures.
-        $fileOperation = $storageType::GetFileFromPathAsync($resolvedPath)
-        $deadline = [DateTime]::UtcNow.AddSeconds(30)
-        while ([string]$fileOperation.Status -eq 'Started') {
-            if ([DateTime]::UtcNow -ge $deadline) { throw 'Timed out opening the lock screen image.' }
-            Start-Sleep -Milliseconds 50
+        # PowerShell 5.1 cannot dynamically dispatch GetResults on WinRT COM objects.
+        # Bridge IAsyncOperation<T> and IAsyncAction to ordinary .NET Tasks instead.
+        Add-Type -AssemblyName System.Runtime.WindowsRuntime -ErrorAction Stop
+        $extensions = [System.WindowsRuntimeSystemExtensions]
+        $genericAsTask = $extensions.GetMethods() | Where-Object {
+            $_.Name -eq 'AsTask' -and $_.IsGenericMethodDefinition -and
+            $_.GetParameters().Count -eq 1
+        } | Select-Object -First 1
+        $actionAsTask = $extensions.GetMethods() | Where-Object {
+            $_.Name -eq 'AsTask' -and -not $_.IsGenericMethodDefinition -and
+            $_.GetParameters().Count -eq 1 -and
+            $_.GetParameters()[0].ParameterType.FullName -eq 'Windows.Foundation.IAsyncAction'
+        } | Select-Object -First 1
+        if (-not $genericAsTask -or -not $actionAsTask) {
+            throw 'Windows Runtime async Task adapters are unavailable.'
         }
-        $file = $fileOperation.GetResults()
+
+        $fileOperation = $storageType::GetFileFromPathAsync($resolvedPath)
+        $fileTask = $genericAsTask.MakeGenericMethod(@($storageType)).Invoke($null, @($fileOperation))
+        if (-not $fileTask.Wait([TimeSpan]::FromSeconds(30))) {
+            throw 'Timed out opening the lock screen image.'
+        }
+        $file = $fileTask.GetAwaiter().GetResult()
 
         $setOperation = $lockScreenType::SetImageFileAsync($file)
-        $deadline = [DateTime]::UtcNow.AddSeconds(30)
-        while ([string]$setOperation.Status -eq 'Started') {
-            if ([DateTime]::UtcNow -ge $deadline) { throw 'Timed out updating the lock screen image.' }
-            Start-Sleep -Milliseconds 50
+        $setTask = $actionAsTask.Invoke($null, @($setOperation))
+        if (-not $setTask.Wait([TimeSpan]::FromSeconds(30))) {
+            throw 'Timed out updating the lock screen image.'
         }
-        $setOperation.GetResults()
+        $setTask.GetAwaiter().GetResult()
         Write-Log -Message "Lock screen wallpaper set successfully: $resolvedPath" -Level "Info" -LogFile $LogFile
         return $true
     }
