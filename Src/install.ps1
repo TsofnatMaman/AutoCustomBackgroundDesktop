@@ -201,7 +201,7 @@ try {
     # Elevated-created files must be writable by the limited interactive task.
     if ($target.Elevated) {
         $acl = Get-Acl -LiteralPath $localPath -ErrorAction Stop
-        $rule = New-Object System.Security.AccessControl.FileSystemAccessRule(
+        $rule = New-Object System.Security.AccessControl.FileSystemAccessRule -ArgumentList @(
             $target.Account, 'Modify', 'ContainerInherit,ObjectInherit', 'None', 'Allow')
         $acl.SetAccessRule($rule)
         Set-Acl -LiteralPath $localPath -AclObject $acl -ErrorAction Stop
