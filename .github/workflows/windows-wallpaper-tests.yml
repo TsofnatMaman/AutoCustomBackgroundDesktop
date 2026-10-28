@@ -38,6 +38,10 @@ jobs:
           if ($null -eq $storageType -or $null -eq $lockScreenType) { throw 'WinRT types are unavailable' }
           if (-not ($storageType.GetMethods().Name -contains 'GetFileFromPathAsync')) { throw 'StorageFile.GetFileFromPathAsync unavailable' }
           if (-not ($lockScreenType.GetMethods().Name -contains 'SetImageFileAsync')) { throw 'LockScreen.SetImageFileAsync unavailable' }
+          Add-Type -AssemblyName System.Runtime.WindowsRuntime
+          $methods = [System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 }
+          if (-not ($methods | Where-Object { $_.IsGenericMethodDefinition })) { throw 'Generic WinRT AsTask adapter unavailable' }
+          if (-not ($methods | Where-Object { -not $_.IsGenericMethodDefinition -and $_.GetParameters()[0].ParameterType.FullName -eq 'Windows.Foundation.IAsyncAction' })) { throw 'WinRT action AsTask adapter unavailable' }
       - name: Validate all wallpaper target combinations
         shell: powershell
         run: |
