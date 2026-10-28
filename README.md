@@ -33,11 +33,12 @@ Automatically sets your Windows desktop wallpaper to a base image with a **count
 
 1. Fork this repository, open new branch for each event and push your customizations (see [Configuration](#configuration) below).
 2. Download or use `release/install.exe`.
-3. Run `install.exe` as Administrator.
+3. Sign in to the Windows account whose wallpaper should change, then double-click `install.exe` **normally**. Do **not** select **Run as administrator** or enter another user's administrator credentials. The per-user installation and scheduled task do not require elevation.
 
 The installer will:
 - Download the repository ZIP from GitHub into `%APPDATA%\.wallpaper_countdown`.
 - Load `Src/config.json` and register a Windows Scheduled Task (`ChangeWallpaperEveryDay`) that runs `Src/daily_run.ps1` silently via `Src/run_hidden.vbs`.
+- Validate that the scheduled task belongs to the same Windows account and is enabled.
 - Run `daily_run.ps1` immediately so the wallpaper is updated right away.
 
 ---
@@ -123,7 +124,7 @@ Lock screen updates use the Windows Runtime API and must run as a supported 64-b
 
 ## Uninstallation
 
-Run `uninstall.exe` (or `Src/uninstall.ps1`) as Administrator. The uninstaller will:
+From the same Windows account used for installation, run `uninstall.exe` (or `Src/uninstall.ps1`) **without elevation**. The uninstaller will:
 - Clear the desktop wallpaper (set to black / blank).
 - Remove the Windows Scheduled Task.
 - Delete the `%APPDATA%\.wallpaper_countdown` folder.
@@ -183,15 +184,27 @@ If you want to build locally, install the [ps2exe](https://github.com/MScholtes/
 ```powershell
 Invoke-ps2exe .\Src\install.ps1 .\install.exe `
    -noConsole `
-   -requireAdmin `
    -iconFile .\Src\icons\install.ico `
    -title "Wallpaper Installer" `
    -description "Installs wallpaper automation"
 
 Invoke-ps2exe .\Src\uninstall.ps1 .\uninstall.exe `
   -noConsole `
-  -requireAdmin `
   -iconFile .\Src\icons\uninstall.ico `
   -title "Wallpaper Uninstaller" `
   -description "Uninstalls wallpaper automation"
 ```
+
+### Verify the per-user task
+
+Run this from a **non-elevated** PowerShell in the account where you installed the app:
+
+```powershell
+$cfg = Get-Content "$env:APPDATA\.wallpaper_countdown\Src\config.json" -Raw | ConvertFrom-Json
+$sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+$name = "$($cfg.system.taskName)-$sid"
+Get-ScheduledTask -TaskName $name -ErrorAction Stop | Format-List TaskName,State,Actions,Triggers,Principal
+Get-ScheduledTaskInfo -TaskName $name | Format-List LastRunTime,LastTaskResult,NextRunTime
+```
+
+Installer diagnostics: `%LOCALAPPDATA%\WallpaperCountdown\logs\install.log`. A previous installation made using another account's UAC credentials stays in that other account; reinstall normally from the intended account, and clean up the other account's installation separately if needed.
