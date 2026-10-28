@@ -118,12 +118,14 @@ function Set-ScheduledTask {
         -Hidden
 
     $user = [Security.Principal.WindowsIdentity]::GetCurrent().Name
-    $principal = New-ScheduledTaskPrincipal -UserId $user -RunLevel Highest
+    $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+    $taskName = "$($cfg.system.taskName)-$sid"
+    $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited
 
     try {
         Write-Log "try register task" "Info" $logFile
-        Unregister-ScheduledTask -TaskName $cfg.system.taskName -Confirm:$false -ErrorAction SilentlyContinue
-        Register-ScheduledTask -TaskName $cfg.system.taskName -Action $action -Trigger @($dailyTrigger, $logonTrigger) -Settings $setting -Principal $principal -Description "Change wallpaper daily and on logon" | Out-Null
+        Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
+        Register-ScheduledTask -TaskName $taskName -Action $action -Trigger @($dailyTrigger, $logonTrigger) -Settings $setting -Principal $principal -Description "Change wallpaper daily and on logon" | Out-Null
         Write-Log "register task succeed!" "Info" $logFile
     }
     catch {
@@ -134,7 +136,7 @@ function Set-ScheduledTask {
 
 Add-Type -AssemblyName System.Windows.Forms
 New-Item -ItemType Directory -Path $localPath -Force | Out-Null
-Write-Log "Start installing..." "Info" $logFile
+Write-Log "Start installing for $([Security.Principal.WindowsIdentity]::GetCurrent().Name) ($env:APPDATA)" "Info" $logFile
 
 try {
     Get-Repo

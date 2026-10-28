@@ -45,14 +45,12 @@ jobs:
 
           Invoke-ps2exe .\Src\install.ps1 .\install.exe `
             -noConsole `
-            -requireAdmin `
             -iconFile .\Src\icons\install.ico `
             -title "Wallpaper Installer" `
             -description "Installs wallpaper automation"
 
           Invoke-ps2exe .\Src\uninstall.ps1 .\uninstall.exe `
             -noConsole `
-            -requireAdmin `
             -iconFile .\Src\icons\uninstall.ico `
             -title "Wallpaper Uninstaller" `
             -description "Uninstalls wallpaper automation"
