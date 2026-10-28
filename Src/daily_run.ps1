@@ -143,6 +143,10 @@ function DailyRun {
     }
     if ($targets.lockScreen) {
         $lockScreenOk = Set-LockScreenWallpaper -Path $outImgDefault -LogFile $logFile
+        if ($lockScreenOk) {
+            # Keep evidence even if config targets are later changed remotely.
+            Set-Content -LiteralPath (Join-Path $appDir 'cache\lockscreen-applied.flag') -Value 'applied' -ErrorAction SilentlyContinue
+        }
     }
     if (-not $desktopOk -or -not $lockScreenOk) {
         Write-Log -Message "Wallpaper update failed for at least one target." -Level "Error" -LogFile $logFile
