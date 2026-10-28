@@ -4,23 +4,53 @@ $githubBranchName = "main"
 
 $RepoUrl = "https://github.com/$githubUsername/$githubRepoName/archive/refs/heads/$githubBranchName.zip"
 
-# This is a per-user installer. Elevation (especially with another account\'s UAC
-# credentials) changes APPDATA and WindowsIdentity to the administrator account.
-# Abort before writing files or creating tasks in the wrong profile.
-$currentIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
-$currentPrincipal = New-Object Security.Principal.WindowsPrincipal($currentIdentity)
-if ($currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    $message = "This installer must run WITHOUT administrator elevation. Sign in as the intended Windows user and launch install.exe normally (not Run as administrator). No changes were made."
-    Write-Host $message
-    Add-Type -AssemblyName System.Windows.Forms
-    [System.Windows.Forms.MessageBox]::Show($message, "Wallpaper Installer", "OK", "Warning") | Out-Null
-    exit 1
+# An elevated installer can run as a *different* administrator account.
+# Resolve the desktop user from explorer.exe in this Windows session, not the
+# elevated process token. Never silently pick a user if the session is ambiguous.
+function Get-InstallTarget {
+    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = New-Object Security.Principal.WindowsPrincipal($identity)
+    $elevated = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    $sid = $identity.User.Value
+
+    if ($elevated) {
+        $sessionId = (Get-Process -Id $PID).SessionId
+        $explorers = @(Get-CimInstance Win32_Process -Filter "Name='explorer.exe'" -ErrorAction Stop |
+            Where-Object { $_.SessionId -eq $sessionId })
+        $candidates = @($explorers | ForEach-Object {
+            $owner = Invoke-CimMethod -InputObject $_ -MethodName GetOwnerSid -ErrorAction SilentlyContinue
+            if ($owner.ReturnValue -eq 0 -and $owner.Sid -match '^S-1-5-21-') { $owner.Sid }
+        } | Sort-Object -Unique)
+        if ($candidates.Count -ne 1) {
+            throw "Could not uniquely identify the desktop user in session $sessionId (found $($candidates.Count)). Sign in as the target user and run the installer from that desktop."
+        }
+        $sid = $candidates[0]
+    }
+
+    $profileKey = "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$sid"
+    $profile = (Get-ItemProperty -LiteralPath $profileKey -ErrorAction Stop).ProfileImagePath
+    $profile = [Environment]::ExpandEnvironmentVariables($profile)
+    if (-not (Test-Path -LiteralPath $profile -PathType Container)) {
+        throw "Target profile directory does not exist: $profile"
+    }
+    $account = ([Security.Principal.SecurityIdentifier]$sid).Translate([Security.Principal.NTAccount]).Value
+    return [PSCustomObject]@{ Sid = $sid; Account = $account; Profile = $profile; Elevated = $elevated }
 }
 
-$localPath = Join-Path $env:APPDATA ".wallpaper_countdown"
-$logDir = Join-Path $env:LOCALAPPDATA "WallpaperCountdown\logs"
+Add-Type -AssemblyName System.Windows.Forms
+try {
+    $target = Get-InstallTarget
+}
+catch {
+    $message = "Cannot determine target Windows user: $($_.Exception.Message)"
+    Write-Host $message
+    [System.Windows.Forms.MessageBox]::Show($message, "Wallpaper Installer") | Out-Null
+    exit 1
+}
+$localPath = Join-Path $target.Profile "AppData\Roaming\.wallpaper_countdown"
+$logDir = Join-Path $target.Profile "AppData\Local\WallpaperCountdown\logs"
 $logFile = Join-Path $logDir "install.log"
-New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+New-Item -ItemType Directory -Path $logDir -Force -ErrorAction Stop | Out-Null
 
 # download zip and extract it to $env:APPDATA/.wallpaper_countdown
 function Write-Log {
@@ -103,8 +133,8 @@ function Get-Repo {
 
 # config ScheduledTask to run in $cfg.wallpaper.time that runs the daily_run every day. when possible, for example, if the computer is off, it will run when it turns on and the user logs in. also runs on battery mode.
 function Set-ScheduledTask {
-    Import-Module "$env:APPDATA/.wallpaper_countdown/Src/Modules/Config.psm1" -WarningAction SilentlyContinue
-    $configFilePath = "$env:APPDATA/.wallpaper_countdown/Src/config.json"
+    Import-Module (Join-Path $localPath "Src\Modules\Config.psm1") -WarningAction SilentlyContinue
+    $configFilePath = Join-Path $localPath "Src\config.json"
 
     Write-Log "Get configuration..." "Info" $logFile
 
@@ -117,7 +147,7 @@ function Set-ScheduledTask {
 
     $action = New-ScheduledTaskAction `
         -Execute "wscript.exe" `
-        -Argument "`"$env:APPDATA\.wallpaper_countdown\Src\run_hidden.vbs`""
+        -Argument "`"$(Join-Path $localPath 'Src\run_hidden.vbs')`""
 
     $dailyTrigger = New-ScheduledTaskTrigger -Daily -At $cfg.wallpaper.time
     $logonTrigger = New-ScheduledTaskTrigger -AtLogOn
@@ -130,8 +160,8 @@ function Set-ScheduledTask {
         -Compatibility Win8 `
         -Hidden
 
-    $user = [Security.Principal.WindowsIdentity]::GetCurrent().Name
-    $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+    $user = $target.Account
+    $sid = $target.Sid
     $taskName = "$($cfg.system.taskName)-$sid"
     $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited
 
@@ -157,23 +187,44 @@ function Set-ScheduledTask {
         Write-Log "register task succeed!" "Info" $logFile
     }
     catch {
-        Write-Log "Register task failed: $($_.Exception.Message)" "Error" $logFile
+        Write-Log "Register task failed: $($_.Exception.Message). If access is denied, run the installer as administrator from the target user desktop." "Error" $logFile
         throw
     }
 }
 
 Add-Type -AssemblyName System.Windows.Forms
 New-Item -ItemType Directory -Path $localPath -Force | Out-Null
-Write-Log "Start installing for $([Security.Principal.WindowsIdentity]::GetCurrent().Name) ($env:APPDATA)" "Info" $logFile
+Write-Log "Start installing for $($target.Account) ($($target.Profile)); elevated=$($target.Elevated)" "Info" $logFile
 
 try {
     Get-Repo
+    # Elevated-created files must be writable by the limited interactive task.
+    if ($target.Elevated) {
+        $acl = Get-Acl -LiteralPath $localPath -ErrorAction Stop
+        $rule = New-Object System.Security.AccessControl.FileSystemAccessRule(
+            $target.Account, 'Modify', 'ContainerInherit,ObjectInherit', 'None', 'Allow')
+        $acl.SetAccessRule($rule)
+        Set-Acl -LiteralPath $localPath -AclObject $acl -ErrorAction Stop
+    }
     Set-ScheduledTask
-    Write-Log "Running initial wallpaper update..." "Info" $logFile
-    $scriptPath = Join-Path $localPath "Src\daily_run.ps1"
-    & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File $scriptPath 2>&1 |
-        ForEach-Object { Write-Log "$_" "Info" $logFile }
-    if ($LASTEXITCODE -ne 0) { throw "Initial wallpaper update failed (exit code $LASTEXITCODE). Check cache logs." }
+    Write-Log "Running initial wallpaper update as $($target.Account) via scheduled task..." "Info" $logFile
+    $taskName = "$((Get-Content (Join-Path $localPath 'Src\config.json') -Raw | ConvertFrom-Json).system.taskName)-$($target.Sid)"
+    $before = (Get-ScheduledTaskInfo -TaskName $taskName -ErrorAction Stop).LastRunTime
+    Start-ScheduledTask -TaskName $taskName -ErrorAction Stop
+    $deadline = (Get-Date).AddMinutes(3)
+    $completed = $false
+    do {
+        Start-Sleep -Seconds 2
+        $status = Get-ScheduledTaskInfo -TaskName $taskName -ErrorAction Stop
+        if ($status.LastRunTime -gt $before -and $status.LastTaskResult -eq 0) {
+            $completed = $true
+            break
+        }
+        if ($status.LastRunTime -gt $before -and $status.LastTaskResult -notin @(0,267009)) {
+            throw "Initial scheduled run returned code $($status.LastTaskResult)"
+        }
+    } while ((Get-Date) -lt $deadline)
+    if (-not $completed) { throw "Initial task run did not complete successfully within 3 minutes. Check Task Scheduler and user cache logs." }
     Write-Log "Install success!" "Info" $logFile
     Write-Host "Install success! Log: $logFile"
     [System.Windows.Forms.MessageBox]::Show("Installation completed successfully.`nLog: $logFile", "Wallpaper Installer") | Out-Null
