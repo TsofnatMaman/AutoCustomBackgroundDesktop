@@ -216,11 +216,11 @@ try {
     do {
         Start-Sleep -Seconds 2
         $status = Get-ScheduledTaskInfo -TaskName $taskName -ErrorAction Stop
-        if ($status.LastRunTime -gt $before -and $status.LastTaskResult -eq 0) {
+        if ($status.LastRunTime -gt $before -and $status.LastTaskResult -eq 0 -and (Get-ScheduledTask -TaskName $taskName).State -ne "Running") {
             $completed = $true
             break
         }
-        if ($status.LastRunTime -gt $before -and $status.LastTaskResult -notin @(0,267009)) {
+        if ($status.LastRunTime -gt $before -and $status.LastTaskResult -notin @(0,267009,267011)) {
             throw "Initial scheduled run returned code $($status.LastTaskResult)"
         }
     } while ((Get-Date) -lt $deadline)
