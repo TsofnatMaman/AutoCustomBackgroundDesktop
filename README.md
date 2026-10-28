@@ -33,7 +33,7 @@ Automatically sets your Windows desktop wallpaper to a base image with a **count
 
 1. Fork this repository, open new branch for each event and push your customizations (see [Configuration](#configuration) below).
 2. Download or use `release/install.exe`.
-3. Sign in to the Windows account whose wallpaper should change, then select **Run as administrator** on `install.exe` and approve UAC. The installer detects the account owning the current Windows Explorer desktop, installs to that account's profile, and registers a limited interactive task for it. If multiple desktop users are detected in the session, installation stops rather than guessing.
+3. Sign in to the Windows account whose wallpaper should change, then double-click `install.exe` normally and approve the automatic Windows UAC prompt. The installer detects the account owning the current Windows Explorer desktop, installs to that account's profile, and registers a limited interactive task for it. If multiple desktop users are detected in the session, installation stops rather than guessing.
 
 The installer will:
 - Download the repository ZIP from GitHub into `%APPDATA%\.wallpaper_countdown`.
@@ -184,6 +184,7 @@ If you want to build locally, install the [ps2exe](https://github.com/MScholtes/
 ```powershell
 Invoke-ps2exe .\Src\install.ps1 .\install.exe `
    -noConsole `
+   -requireAdmin `
    -iconFile .\Src\icons\install.ico `
    -title "Wallpaper Installer" `
    -description "Installs wallpaper automation"
@@ -207,4 +208,4 @@ Get-ScheduledTask -TaskName $name -ErrorAction Stop | Format-List TaskName,State
 Get-ScheduledTaskInfo -TaskName $name | Format-List LastRunTime,LastTaskResult,NextRunTime
 ```
 
-Installer diagnostics: `<target user's profile>\AppData\Local\WallpaperCountdown\logs\install.log`. An administrator's previous installation remains in the admin profile until separately cleaned up. The new installer uses the active desktop account instead of the UAC administrator account. On systems restricting task registration, launch the installer elevated from the desired user's desktop. The first update runs through the task in the target user's interactive session.
+Installer diagnostics: `<target user's profile>\AppData\Local\WallpaperCountdown\logs\install.log`. An administrator's previous installation remains in the admin profile until separately cleaned up. The new installer uses the active desktop account instead of the UAC administrator account. The installer requests elevation automatically through its EXE manifest (UAC); run it from the intended user's desktop. The first update runs through the task in the target user's interactive session.
