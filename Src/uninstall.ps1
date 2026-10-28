@@ -37,6 +37,8 @@ function Unregister-Task {
             $taskName = $cfg.system.taskName
         }
 
+        $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+        $taskName = "$taskName-$sid"
         $task = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
         if ($task) {
             Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction Stop
