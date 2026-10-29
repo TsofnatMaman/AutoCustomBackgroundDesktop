@@ -6,6 +6,7 @@ on:
       - "**"
     paths:
       - "Src/install.ps1"
+      - "Src/uninstall.ps1"
       - ".github/workflows/build-exe.yml"
   workflow_run:
     workflows:
@@ -38,6 +39,22 @@ jobs:
           Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
           Install-Module -Name ps2exe -Scope CurrentUser -Force -AllowClobber
           Import-Module ps2exe -Force
+
+      - name: Validate PowerShell syntax
+        shell: pwsh
+        run: |
+          foreach ($file in @('.\\Src\\install.ps1', '.\\Src\\uninstall.ps1')) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $file), [ref]$tokens, [ref]$errors
+            ) | Out-Null
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object { Write-Error "$file : $_" }
+              exit 1
+            }
+            Write-Host "$file syntax OK"
+          }
 
       - name: Build install.exe and uninstall.exe
         shell: pwsh

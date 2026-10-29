@@ -1,6 +1,6 @@
 $ConfirmPreference = 'None'
 
-# Uninstall must target the interactive user, never a different UAC admin account.
+# Uninstall in the account where the wallpaper task runs.
 $currentIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
 $currentPrincipal = New-Object Security.Principal.WindowsPrincipal($currentIdentity)
 if ($currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
@@ -8,7 +8,7 @@ if ($currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administ
     exit 1
 }
 
-$localPath = Join-Path $env:APPDATA ".wallpaper_countdown"
+$localPath = Join-Path $env:APPDATA '.wallpaper_countdown'
 
 function Write-Log {
     param([string]$Message)
@@ -16,10 +16,8 @@ function Write-Log {
 }
 
 function Set-BlackWallpaper {
-    Set-ItemProperty "HKCU:\Control Panel\Colors" -Name Background -Value "0 0 0"
-
-    Set-ItemProperty "HKCU:\Control Panel\Desktop" -Name Wallpaper -Value ""
-
+    Set-ItemProperty 'HKCU:\Control Panel\Colors' -Name Background -Value '0 0 0'
+    Set-ItemProperty 'HKCU:\Control Panel\Desktop' -Name Wallpaper -Value ''
     RUNDLL32.EXE user32.dll,UpdatePerUserSystemParameters
 
     Add-Type @"
@@ -29,17 +27,15 @@ public class Native {
     public static extern bool SystemParametersInfo(int uAction,int uParam,string lpvParam,int fuWinIni);
 }
 "@
-
     [Native]::SystemParametersInfo(20, 0, $null, 3) | Out-Null
 }
 
-
 function Reset-LockScreen {
-    # Windows has no supported API to clear a custom lock screen to "unset".
-    # Restore a stock Windows lock-screen image via the same per-user WinRT API
-    # used by the app, without modifying system files or machine-wide policies.
+    # A custom lock screen cannot be unset via a supported API.
+    # Replace an app-managed image with a stock Windows image.
     $marker = Join-Path $localPath 'cache\lockscreen-applied.flag'
     $wasApplied = Test-Path -LiteralPath $marker
+
     if (-not $wasApplied) {
         $configPath = Join-Path $localPath 'Src\config.json'
         if (Test-Path -LiteralPath $configPath) {
@@ -52,6 +48,7 @@ function Reset-LockScreen {
             }
         }
     }
+
     if (-not $wasApplied) {
         Write-Log 'No lock-screen update recorded; leaving the existing lock screen unchanged.'
         return
@@ -61,59 +58,11 @@ function Reset-LockScreen {
     $stock = Join-Path $screenFolder 'img100.jpg'
     if (-not (Test-Path -LiteralPath $stock -PathType Leaf)) {
         $stock = Get-ChildItem -LiteralPath $screenFolder -File -ErrorAction SilentlyContinue |
-            Where-Object { $_.Extension -match '^\.(jpg|jpeg|png)
-    try {
-        $configPath = Join-Path $localPath "Src\config.json"
-
-        if(-not (Test-Path $configPath)){
-            $taskName = "ChangeWallpaperEveryDay"
-        }
-        else {
-            $cfg = Get-Content $configPath | ConvertFrom-Json
-            $taskName = $cfg.system.taskName
-        }
-
-        $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-        $taskName = "$taskName-$sid"
-        $task = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
-        if ($task) {
-            Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction Stop
-            Write-Log "Scheduled Task $taskName removed"
-        }
-        else {
-            Write-Log "Scheduled Task $taskName not found, skipping"
-        }
+            Where-Object { $_.Extension -match '^\.(jpg|jpeg|png)$' } |
+            Sort-Object Name |
+            Select-Object -First 1 -ExpandProperty FullName
     }
-    catch {
-        Write-Log "Failed to remove scheduled task: $($_.Exception.Message)"
-        throw
-    }
-}
 
-function Remove-Folder {
-    try {
-        if(Test-Path $localPath) {
-            Remove-Item $localPath -Recurse -Force -ErrorAction Stop
-            Write-Log "Deleted Folder $localPath"
-        }
-    }
-    catch {
-        Write-Log "Failed to delete folder ${localPath}: $($_.Exception.Message)"
-        throw
-    }
-}
-
-Write-Log "Starting uninstall..."
-
-Set-BlackWallpaper
-Reset-LockScreen
-
-Unregister-Task
-Remove-Folder
-
-Write-Log "Uninstall completed" } |
-            Sort-Object Name | Select-Object -First 1 -ExpandProperty FullName
-    }
     if (-not $stock) {
         Write-Log 'Windows stock lock-screen image not found; existing lock screen left unchanged.'
         return
@@ -136,13 +85,12 @@ Write-Log "Uninstall completed" } |
 
 function Unregister-Task {
     try {
-        $configPath = Join-Path $localPath "Src\config.json"
-
-        if(-not (Test-Path $configPath)){
-            $taskName = "ChangeWallpaperEveryDay"
+        $configPath = Join-Path $localPath 'Src\config.json'
+        if (-not (Test-Path -LiteralPath $configPath)) {
+            $taskName = 'ChangeWallpaperEveryDay'
         }
         else {
-            $cfg = Get-Content $configPath | ConvertFrom-Json
+            $cfg = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
             $taskName = $cfg.system.taskName
         }
 
@@ -165,8 +113,8 @@ function Unregister-Task {
 
 function Remove-Folder {
     try {
-        if(Test-Path $localPath) {
-            Remove-Item $localPath -Recurse -Force -ErrorAction Stop
+        if (Test-Path -LiteralPath $localPath) {
+            Remove-Item -LiteralPath $localPath -Recurse -Force -ErrorAction Stop
             Write-Log "Deleted Folder $localPath"
         }
     }
@@ -176,11 +124,9 @@ function Remove-Folder {
     }
 }
 
-Write-Log "Starting uninstall..."
-
+Write-Log 'Starting uninstall...'
 Set-BlackWallpaper
-
+Reset-LockScreen
 Unregister-Task
 Remove-Folder
-
-Write-Log "Uninstall completed"
+Write-Log 'Uninstall completed'
