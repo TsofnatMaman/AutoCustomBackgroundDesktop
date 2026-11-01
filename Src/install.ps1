@@ -13,20 +13,21 @@ $policyList = Get-ExecutionPolicy -List
 $managedPolicy = @($policyList | Where-Object {
     $_.Scope -in @('MachinePolicy', 'UserPolicy') -and $_.ExecutionPolicy -ne 'Undefined'
 })
-if ($managedPolicy.Count -gt 0) {
-    Add-Type -AssemblyName System.Windows.Forms
-    $msg = 'Installation cannot load PowerShell modules because execution policy is managed by your organization. Contact your administrator.'
-    [System.Windows.Forms.MessageBox]::Show($msg, 'Wallpaper Installer') | Out-Null
-    exit 1
+if ($managedPolicy.Count -eq 0) {
+    try {
+        Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force -ErrorAction Stop
+    }
+    catch {
+        Add-Type -AssemblyName System.Windows.Forms
+        $msg = "Could not enable PowerShell modules for this installation process: $($_.Exception.Message)"
+        [System.Windows.Forms.MessageBox]::Show($msg, 'Wallpaper Installer') | Out-Null
+        exit 1
+    }
 }
-try {
-    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force -ErrorAction Stop
-}
-catch {
-    Add-Type -AssemblyName System.Windows.Forms
-    $msg = "Could not enable PowerShell modules for this installation process: $($_.Exception.Message)"
-    [System.Windows.Forms.MessageBox]::Show($msg, 'Wallpaper Installer') | Out-Null
-    exit 1
+else {
+    # Respect Group Policy. Local PowerShell modules may still be allowed
+    # under RemoteSigned/Unrestricted; let Import-Module check the policy.
+    Write-Host "Execution policy is managed by Group Policy: $(Get-ExecutionPolicy)"
 }
 
 
