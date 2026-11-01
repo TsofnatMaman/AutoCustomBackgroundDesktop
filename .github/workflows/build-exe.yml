@@ -19,7 +19,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: build-exe-${{ github.ref }}
+  group: build-exe-${{ github.event.workflow_run.head_branch || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -80,18 +80,48 @@ jobs:
       - name: Commit release EXE files
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
-          git add -f .\release\install.exe .\release\uninstall.exe
+          $branch = "${{ github.event.workflow_run.head_branch || github.ref_name }}"
+          if (-not $branch) { throw 'Missing branch name' }
+          $builtFrom = (git rev-parse HEAD).Trim()
+          $sources = @('Src/install.ps1', 'Src/uninstall.ps1', '.github/workflows/build-exe.yml')
 
-          git diff --cached --quiet
-          if ($LASTEXITCODE -eq 0) {
-            Write-Host "No EXE changes to commit."
-            exit 0
+          for ($attempt = 1; $attempt -le 5; $attempt++) {
+            Write-Host "Publishing to $branch (attempt $attempt/5)"
+            git fetch origin "refs/heads/${branch}:refs/remotes/origin/${branch}"
+            if ($LASTEXITCODE -ne 0) { throw 'Failed to fetch remote branch' }
+
+            git diff --quiet $builtFrom "origin/$branch" -- $sources
+            if ($LASTEXITCODE -eq 1) {
+              throw 'Installer source changed during build. Refusing to upload stale binaries; rerun Build EXE.'
+            }
+            if ($LASTEXITCODE -ne 0) { throw 'Failed to compare source revisions' }
+
+            # Keep the generated EXEs in the working tree, update history and
+            # stage only release outputs; do not overwrite unrelated changes.
+            git reset --mixed "origin/$branch"
+            if ($LASTEXITCODE -ne 0) { throw 'Failed to update local index' }
+            git add -f -- release/install.exe release/uninstall.exe
+            if ($LASTEXITCODE -ne 0) { throw 'Failed to stage release binaries' }
+            git diff --cached --quiet
+            if ($LASTEXITCODE -eq 0) {
+              Write-Host 'Release files already match the remote branch.'
+              exit 0
+            }
+            if ($LASTEXITCODE -ne 1) { throw 'Failed to compare binaries' }
+            git commit -m "ci: update release exe files [skip ci]"
+            if ($LASTEXITCODE -ne 0) { throw 'Commit failed' }
+            git push origin "HEAD:refs/heads/$branch"
+            if ($LASTEXITCODE -eq 0) {
+              Write-Host 'Release files pushed.'
+              exit 0
+            }
+            Write-Warning "Remote changed; fetching and retrying..."
+            Start-Sleep -Seconds (2 * $attempt)
           }
-
-          git commit -m "ci: update release exe files [skip ci]"
-          git push
+          throw 'Push rejected after 5 retries'
 
       - name: Upload EXE artifacts
         uses: actions/upload-artifact@v4
