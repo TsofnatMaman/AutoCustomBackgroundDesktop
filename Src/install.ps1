@@ -4,6 +4,33 @@ $githubBranchName = "shira-wedding"
 
 $RepoUrl = "https://github.com/$githubUsername/$githubRepoName/archive/refs/heads/$githubBranchName.zip"
 
+# PS2EXE runs this script in a PowerShell runspace. The user's local
+# execution policy may be Restricted even though the EXE itself can start.
+# Allow only this installer process to load the downloaded .psm1 modules.
+# Domain Group Policy (MachinePolicy/UserPolicy) takes precedence; do not
+# override it or silently change the system/user execution policy.
+$policyList = Get-ExecutionPolicy -List
+$managedPolicy = @($policyList | Where-Object {
+    $_.Scope -in @('MachinePolicy', 'UserPolicy') -and $_.ExecutionPolicy -ne 'Undefined'
+})
+if ($managedPolicy.Count -gt 0) {
+    Add-Type -AssemblyName System.Windows.Forms
+    $msg = 'Installation cannot load PowerShell modules because execution policy is managed by your organization. Contact your administrator.'
+    [System.Windows.Forms.MessageBox]::Show($msg, 'Wallpaper Installer') | Out-Null
+    exit 1
+}
+try {
+    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force -ErrorAction Stop
+}
+catch {
+    Add-Type -AssemblyName System.Windows.Forms
+    $msg = "Could not enable PowerShell modules for this installation process: $($_.Exception.Message)"
+    [System.Windows.Forms.MessageBox]::Show($msg, 'Wallpaper Installer') | Out-Null
+    exit 1
+}
+
+
+
 # An elevated installer can run as a *different* administrator account.
 # Resolve the desktop user from explorer.exe in this Windows session, not the
 # elevated process token. Never silently pick a user if the session is ambiguous.
