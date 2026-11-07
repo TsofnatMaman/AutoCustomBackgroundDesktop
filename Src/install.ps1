@@ -1,6 +1,6 @@
 ﻿$githubUsername = 'TsofnatMaman'
 $githubRepoName = 'AutoCustomBackgroundDesktop'
-$githubBranchName = 'main'
+$githubBranchName = 'feat/security-regression-validation'
 
 $RepoUrl = "https://github.com/$githubUsername/$githubRepoName/archive/refs/heads/$githubBranchName.zip"
 
