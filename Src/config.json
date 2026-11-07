@@ -6,7 +6,7 @@
   "github": {
     "username": "TsofnatMaman",
     "repository": "AutoCustomBackgroundDesktop",
-    "branch": "main",
+    "branch": "security/fix-branch-command-injection",
     "imagePath": "backgrounds/1.jpg"
   },
   "wallpaper": {
