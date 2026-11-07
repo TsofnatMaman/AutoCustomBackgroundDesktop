@@ -79,11 +79,13 @@ jobs:
 
       - name: Commit release EXE files
         shell: pwsh
+        env:
+          PUBLISH_BRANCH: ${{ github.event.workflow_run.head_branch || github.ref_name }}
         run: |
           $ErrorActionPreference = 'Stop'
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
-          $branch = "${{ github.event.workflow_run.head_branch || github.ref_name }}"
+          $branch = $env:PUBLISH_BRANCH
           if (-not $branch) { throw 'Missing branch name' }
           $builtFrom = (git rev-parse HEAD).Trim()
           $sources = @('Src/install.ps1', 'Src/uninstall.ps1', '.github/workflows/build-exe.yml')
