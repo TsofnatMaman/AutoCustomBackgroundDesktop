@@ -26,6 +26,18 @@ Describe "Days Calculation Module" {
             $result | Should -Be 5
         }
 
+        It "Returns zero on the target date, including after midnight" {
+            Mock Get-Date { return [datetime]"2026-11-18T15:00:00" } -ModuleName Countdown
+            $cfg = @{ wallpaper = @{ targetDate = "2026-11-18" } }
+            Get-DaysRemaining -cfg $cfg | Should -Be 0
+        }
+
+        It "Returns a negative number after the target date" {
+            Mock Get-Date { return [datetime]"2026-11-19T00:30:00" } -ModuleName Countdown
+            $cfg = @{ wallpaper = @{ targetDate = "2026-11-18" } }
+            Get-DaysRemaining -cfg $cfg | Should -Be -1
+        }
+
         It "Throws an error if the date format is invalid" {
             $invalidCfg = @{
                 wallpaper = @{
