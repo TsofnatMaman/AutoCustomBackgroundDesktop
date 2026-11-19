@@ -28,6 +28,10 @@ jobs:
           Import-Module Pester -RequiredVersion 5.7.1 -Force
           $result = Invoke-Pester -Path ./Tests -PassThru
           if ($result.FailedCount -gt 0 -or $result.PassedCount -eq 0) { exit 1 }
+      - name: Run isolated expiration cleanup integration (real Windows processes)
+        shell: powershell
+        run: |
+          & ./Tests/Expiration.Integration.ps1
       - name: Check PowerShell syntax and Windows Runtime API availability
         shell: powershell
         run: |
