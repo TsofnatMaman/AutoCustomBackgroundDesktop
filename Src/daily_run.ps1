@@ -62,6 +62,21 @@ function DailyRun {
         return $false
     }
 
+    # Expiration must be handled before image downloads or wallpaper rendering.
+    # In particular, an offline PC still needs to remove the scheduled task.
+    try {
+        $daysRemaining = Get-DaysRemaining -cfg $cfg
+        if ($daysRemaining -le 0) {
+            Write-Log -Message "Countdown expired ($daysRemaining days remaining). Starting automatic uninstall." -Level "Info" -LogFile $logFile
+            & (Join-Path $PSScriptRoot 'uninstall.ps1')
+            return $true
+        }
+    }
+    catch {
+        Write-Log -Message "Expiration check or automatic uninstall failed: $($_.Exception.Message)" -Level "Error" -LogFile $logFile
+        return $false
+    }
+
     # ===== Image Handling =====
     $imgPath = $cfg.github.imagePath
     $imgPathDefault = Join-Path $appDir $imgPath
@@ -116,13 +131,6 @@ function DailyRun {
     }
 
     # ===== Countdown =====
-    $dayRemain = Get-DaysRemaining $cfg
-
-    if ($dayRemain -le 0) {
-        Write-Host "The program is finished, to uninstall - copy to another folder and run the file %APPDATA%\.wallpaper_countdown\Src\uninstall.exe We invite you to use the program again - github.com/$($cfg.github.username)/$($cfg.github.repository)"
-        return $true
-    }
-
     $textDaysRemain = Get-DaysText -cfg $cfg
 
     $renderOk = Export-CountdownImage `
