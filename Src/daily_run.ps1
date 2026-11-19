@@ -88,7 +88,16 @@ try {
     if (Get-Process -Id $parentId -ErrorAction SilentlyContinue) {
         throw "Countdown process $parentId did not exit in time; refusing to remove active files."
     }
-    & $uninstaller
+    # Run a temporary copy outside the installation directory. The uninstaller
+    # must not execute from the tree that it removes.
+    $stagedUninstaller = Join-Path $env:TEMP ("wallpaper-uninstall-" + [guid]::NewGuid().ToString('N') + '.ps1')
+    Copy-Item -LiteralPath $uninstaller -Destination $stagedUninstaller -ErrorAction Stop
+    try {
+        & $stagedUninstaller
+    }
+    finally {
+        Remove-Item -LiteralPath $stagedUninstaller -Force -ErrorAction SilentlyContinue
+    }
     if (Test-Path -LiteralPath (Join-Path $env:APPDATA '.wallpaper_countdown')) {
         throw 'Uninstaller returned but the installation folder still exists.'
     }
