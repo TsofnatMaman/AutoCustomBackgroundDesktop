@@ -1,6 +1,6 @@
 ﻿$githubUsername = 'TsofnatMaman'
 $githubRepoName = 'AutoCustomBackgroundDesktop'
-$githubBranchName = 'main'
+$githubBranchName = 'fix/automatic-expiration-uninstall'
 
 $RepoUrl = "https://github.com/$githubUsername/$githubRepoName/archive/refs/heads/$githubBranchName.zip"
 
