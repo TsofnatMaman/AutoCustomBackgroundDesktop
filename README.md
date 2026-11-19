@@ -16,7 +16,7 @@ Automatically sets your Windows desktop wallpaper to a base image with a **count
   - Starts when available (catches up if the PC was off).
   - Runs on battery.
 - Modular architecture with full Pester test coverage.
-- When the countdown reaches zero or below, the app automatically runs the existing uninstaller to reset the wallpapers, unregister its scheduled task, and remove its files.
+- When the countdown reaches zero or below, the app launches a separate PowerShell cleanup process, which waits for the running countdown process to exit before invoking the existing uninstaller to reset wallpapers, unregister its scheduled task, and remove its files.
 
 ---
 
@@ -98,7 +98,7 @@ Edit `Src/config.json` before pushing to GitHub (the installer will pick it up a
    - Polls `Src/config.json` from GitHub to stay in sync with any config changes you push.
    - Downloads the latest base image from `github.imagePath`.
    - Computes the number of days remaining until `wallpaper.targetDate`.
-   - If days remaining ≤ 0: runs `uninstall.ps1` before downloading images, including when image refresh would fail.
+   - If days remaining ≤ 0: launches a detached uninstaller before downloading images. The helper waits for the daily run to exit before invoking `uninstall.ps1`, avoiding in-use installation files.
    - Otherwise: renders the countdown text onto the image using GDI+ (`System.Drawing`) and applies it to the selected destinations: desktop via `SystemParametersInfo`, lock screen via the Windows Runtime `LockScreen.SetImageFileAsync` API.
 3. **Silent execution** — `Src/run_hidden.vbs` launches `daily_run.ps1` via `wscript.exe` with window style `0` (hidden), so no console window appears.
 
@@ -215,3 +215,5 @@ Installer diagnostics: `<target user's profile>\AppData\Local\WallpaperCountdown
 Expiry is evaluated using the local Windows calendar date: the target date itself is day 0, so the next scheduled run on or after the target date removes the app. The cleanup is performed under the installed Windows user account. It restores the desktop to a black background and, if the application changed the lock screen, attempts to restore a stock Windows lock screen image.
 
 **Existing installations do not update their PowerShell scripts automatically.** They only refresh configuration and images. To remove an installation already past its target date, run the existing `release/uninstall.exe` from the installed Windows user account without elevation. For future events, install the updated branch before the countdown expires.
+
+Automatic cleanup attempts and failures are logged outside the removed installation directory at `%LOCALAPPDATA%\\WallpaperCountdown\\logs\\expiration-uninstall.log`. Deletion may still fail because of access-denied errors, external file locks, or Windows policy; check this log if the installation remains.
