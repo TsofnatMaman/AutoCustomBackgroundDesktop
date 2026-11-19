@@ -62,6 +62,68 @@ function DailyRun {
         return $false
     }
 
+    # Expiration cleanup must happen outside this running PowerShell process.
+    # Otherwise uninstall.ps1 could delete the active script and imported modules.
+    try {
+        $daysRemaining = Get-DaysRemaining -cfg $cfg
+        if ($daysRemaining -le 0) {
+            $uninstaller = Join-Path $PSScriptRoot 'uninstall.ps1'
+            if (-not (Test-Path -LiteralPath $uninstaller -PathType Leaf)) {
+                throw "Uninstaller not found: $uninstaller"
+            }
+
+            # The child process waits for this PowerShell host to exit before
+            # touching the scheduled task or deleting the installation folder.
+            # EncodedCommand avoids a temporary helper file inside the directory
+            # that is about to be removed.
+            $escapedUninstaller = $uninstaller.Replace("'", "''")
+            $cleanupScript = @'
+$parentId = __PARENT_PID__
+$uninstaller = '__UNINSTALLER_PATH__'
+$logDir = Join-Path $env:LOCALAPPDATA 'WallpaperCountdown\logs'
+$logPath = Join-Path $logDir 'expiration-uninstall.log'
+New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+try {
+    Wait-Process -Id $parentId -Timeout 120 -ErrorAction SilentlyContinue
+    if (Get-Process -Id $parentId -ErrorAction SilentlyContinue) {
+        throw "Countdown process $parentId did not exit in time; refusing to remove active files."
+    }
+    # Run a temporary copy outside the installation directory. The uninstaller
+    # must not execute from the tree that it removes.
+    $stagedUninstaller = Join-Path $env:TEMP ("wallpaper-uninstall-" + [guid]::NewGuid().ToString('N') + '.ps1')
+    Copy-Item -LiteralPath $uninstaller -Destination $stagedUninstaller -ErrorAction Stop
+    try {
+        & $stagedUninstaller
+    }
+    finally {
+        Remove-Item -LiteralPath $stagedUninstaller -Force -ErrorAction SilentlyContinue
+    }
+    if (Test-Path -LiteralPath (Join-Path $env:APPDATA '.wallpaper_countdown')) {
+        throw 'Uninstaller returned but the installation folder still exists.'
+    }
+    Add-Content -LiteralPath $logPath -Value "[$(Get-Date -Format s)] Automatic uninstall completed." -Encoding UTF8
+}
+catch {
+    Add-Content -LiteralPath $logPath -Value "[$(Get-Date -Format s)] Automatic uninstall failed: $($_.Exception.Message)" -Encoding UTF8
+    exit 1
+}
+'@
+            $cleanupScript = $cleanupScript.Replace('__PARENT_PID__', [string]$PID).Replace('__UNINSTALLER_PATH__', $escapedUninstaller)
+            $encodedCommand = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($cleanupScript))
+            $child = Start-Process -FilePath 'powershell.exe' -ArgumentList @(
+                '-NoProfile', '-ExecutionPolicy', 'Bypass',
+                '-EncodedCommand', $encodedCommand
+            ) -WindowStyle Hidden -PassThru -ErrorAction Stop
+
+            Write-Log -Message "Countdown expired ($daysRemaining days). Detached uninstall launched (PID $($child.Id)); cleanup begins after current process exits." -Level "Info" -LogFile $logFile
+            return $true
+        }
+    }
+    catch {
+        Write-Log -Message "Expiration check or automatic uninstall launch failed: $($_.Exception.Message)" -Level "Error" -LogFile $logFile
+        return $false
+    }
+
     # ===== Image Handling =====
     $imgPath = $cfg.github.imagePath
     $imgPathDefault = Join-Path $appDir $imgPath
@@ -116,13 +178,6 @@ function DailyRun {
     }
 
     # ===== Countdown =====
-    $dayRemain = Get-DaysRemaining $cfg
-
-    if ($dayRemain -le 0) {
-        Write-Host "The program is finished, to uninstall - copy to another folder and run the file %APPDATA%\.wallpaper_countdown\Src\uninstall.exe We invite you to use the program again - github.com/$($cfg.github.username)/$($cfg.github.repository)"
-        return $true
-    }
-
     $textDaysRemain = Get-DaysText -cfg $cfg
 
     $renderOk = Export-CountdownImage `
